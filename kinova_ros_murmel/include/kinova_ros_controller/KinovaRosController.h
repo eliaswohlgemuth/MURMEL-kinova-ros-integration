@@ -1,7 +1,6 @@
 #pragma once
 
 #include <ros/ros.h>
-#include <kinova-ros/kinova_msgs/HomeArm.h>
 #include <geometry_msgs/PoseStamped.h>
 // #include messages
 
@@ -13,8 +12,8 @@ class KinovaRosController {
         KinovaRosController(ros::NodeHandle &nodeHandle);
         ~KinovaRosController(){}
 
-        bool KinovaRosController::readParameters();
-        bool KinovaRosController::isHomed();
+        bool readParameters();
+        bool isHomed();
         
 
     private:
@@ -24,7 +23,7 @@ class KinovaRosController {
         const int queue_size_ = 10;
 
 
-        void KinovaRosController::kinovaCoordinatesCallback(const geometry_msgs::PoseStamped& pose);
-        void KinovaRosController::keyholeCoordinatesCallback(const geometry_msgs::PoseStamped& pose);
+        void kinovaCoordinatesCallback(const geometry_msgs::PoseStamped& pose);
+        void keyholeCoordinatesCallback(const geometry_msgs::PoseStamped& pose);
 };
 }

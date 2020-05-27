@@ -1,6 +1,7 @@
 #include "kinova_ros_controller/KinovaRosController.h"
 
 namespace kinova_ros_murmel {
+    
     KinovaRosController::KinovaRosController(ros::NodeHandle &nodeHandle) 
         : nodeHandle_(nodeHandle)
     {
