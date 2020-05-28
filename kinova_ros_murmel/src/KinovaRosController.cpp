@@ -14,11 +14,11 @@ namespace kinova_ros_murmel {
             ros::requestShutdown();
         }
 
-        //home arm via homing_service
-        ros::ServiceClient homeClient = nodeHandle_.serviceClient <kinova_msgs::HomeArm>("home_arm");
-        kinova_msgs::HomeArm srv;
+        //home arm via kinova homing_service
+        ros::ServiceClient homeClient = nodeHandle_.serviceClient <kinova_ros_murmel::HomeArm>("home_arm");
+        kinova_ros_murmel::HomeArm srv;
         if(homeClient.call(srv)){
-            ROS_INFO(srv.response.homearm_result);
+            ROS_INFO_STREAM(srv.response.homearm_result);
         } else
             ROS_ERROR("Failed to call service home_arm");
 

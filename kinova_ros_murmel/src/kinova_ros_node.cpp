@@ -1,5 +1,5 @@
 #include <ros/ros.h>
-#include "kinova_ros_murmel/KinovaRosController.hpp"
+#include "kinova_ros_controller/KinovaRosController.h"
 
 int main(int argc, char** argv)
 {
