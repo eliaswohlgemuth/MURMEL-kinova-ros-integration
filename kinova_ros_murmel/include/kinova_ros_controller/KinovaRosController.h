@@ -2,6 +2,7 @@
 
 #include <ros/ros.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <kinova_ros_murmel/HomeArm.h>
 // #include messages
 
 
