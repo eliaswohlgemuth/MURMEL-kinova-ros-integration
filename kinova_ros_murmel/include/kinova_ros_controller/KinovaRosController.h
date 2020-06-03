@@ -3,6 +3,10 @@
 #include <ros/ros.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <kinova_ros_murmel/HomeArm.h>
+
+#include <actionlib/client/simple_action_client.h>
+#include <actionlib/client/terminal_state.h>
+#include <kinova_ros_murmel/ArmPoseAction.h>
 // #include messages
 
 
@@ -25,6 +29,6 @@ class KinovaRosController {
 
 
         void kinovaCoordinatesCallback(const geometry_msgs::PoseStamped& pose);
-        void keyholeCoordinatesCallback(const geometry_msgs::PoseStamped& pose);
+        void cameraCoordinatesCallback(const geometry_msgs::PoseStamped& pose);
 };
 }
