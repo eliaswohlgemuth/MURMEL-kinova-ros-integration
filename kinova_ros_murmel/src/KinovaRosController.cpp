@@ -22,17 +22,17 @@ namespace kinova_ros_murmel {
         } else
             ROS_ERROR("Failed to call service home_arm");
 
-        // move to manually chosen start position, which points the tool at the mulleimer
+        // move to manually chosen start position, which points at the tool of mulleimer
         actionlib::SimpleActionClient<kinova_ros_murmel::ArmPoseAction> home_action_client("tool_pose", true);
         kinova_ros_murmel::ArmPoseGoal goal;
-        goal.pose.pose.position.x;
-        goal.pose.pose.position.y;
-        goal.pose.pose.position.z;
-        goal.pose.pose.orientation.w;
-        goal.pose.pose.orientation.x;
-        goal.pose.pose.orientation.y;
-        goal.pose.pose.orientation.z;
-
+        goal.pose.pose.position.x = home_x_;
+        goal.pose.pose.position.y = home_y_;
+        goal.pose.pose.position.z = home_z_;
+        goal.pose.pose.orientation.x = home_quat_x_;
+        goal.pose.pose.orientation.y = home_quat_y_;
+        goal.pose.pose.orientation.z = home_quat_z_;
+        goal.pose.pose.orientation.w = home_quat_w_;
+        
         home_action_client.sendGoal(goal);
         bool finished_before_timeout = home_action_client.waitForResult(ros::Duration(5.0));
         if(finished_before_timeout) {
@@ -48,7 +48,13 @@ namespace kinova_ros_murmel {
     }
 
     bool KinovaRosController::readParameters(){
-        
+        if(!nodeHandle_.getParam("home_x", home_x_)
+            && !nodeHandle_.getParam("home_y", home_y_)
+            && !nodeHandle_.getParam("home_z", home_z_)
+            && !nodeHandle_.getParam("home_quat_x", home_quat_x_)
+            && !nodeHandle_.getParam("home_quat_y", home_quat_y_)
+            && !nodeHandle_.getParam("home_quat_z", home_quat_z_)
+            && !nodeHandle_.getParam("home_quat_w", home_quat_w_)) return false;
         return true;
     }
 

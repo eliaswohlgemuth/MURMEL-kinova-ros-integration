@@ -27,6 +27,14 @@ class KinovaRosController {
         ros::Subscriber camera_coordinates_subscriber_;
         const int queue_size_ = 10;
 
+        //custom home postition coordinates
+        double home_x_;
+        double home_y_;
+        double home_z_;
+        double home_quat_x_;
+        double home_quat_y_;
+        double home_quat_z_;
+        double home_quat_w_;
 
         void kinovaCoordinatesCallback(const geometry_msgs::PoseStamped& pose);
         void cameraCoordinatesCallback(const geometry_msgs::PoseStamped& pose);
