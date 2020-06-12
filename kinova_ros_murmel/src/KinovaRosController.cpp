@@ -14,6 +14,11 @@ namespace kinova_ros_murmel {
             ros::requestShutdown();
         }
 
+        // ROS communication setup for camera
+        connection_check_client = nodeHandle_.serviceClient<kinova_ros_murmel::ConnectionCheck>("check_connection");
+        camera_mode_client = nodeHandle_.serviceClient<kinova_ros_murmel::CameraMode>("set_camera_mode");
+        camera_coordinates_subscriber_ = nodeHandle_.subscribe("keyhole_pose", queue_size_, &KinovaRosController::cameraCoordinatesCallback, this);
+
         //home arm via kinova homing_service
         ros::ServiceClient home_srv_client = nodeHandle_.serviceClient <kinova_ros_murmel::HomeArm>("home_arm");
         kinova_ros_murmel::HomeArm srv;
@@ -47,6 +52,7 @@ namespace kinova_ros_murmel {
         camera_coordinates_subscriber_ = nodeHandle_.subscribe("out/keyhole_pose", queue_size_, &KinovaRosController::cameraCoordinatesCallback, this);
     }
 
+
     bool KinovaRosController::readParameters(){
         if(!nodeHandle_.getParam("home_x", home_x_)
             && !nodeHandle_.getParam("home_y", home_y_)
@@ -54,11 +60,25 @@ namespace kinova_ros_murmel {
             && !nodeHandle_.getParam("home_quat_x", home_quat_x_)
             && !nodeHandle_.getParam("home_quat_y", home_quat_y_)
             && !nodeHandle_.getParam("home_quat_z", home_quat_z_)
-            && !nodeHandle_.getParam("home_quat_w", home_quat_w_)) return false;
+            && !nodeHandle_.getParam("home_quat_w", home_quat_w_)
+            && !nodeHandle_.getParam("op_state", op_state_)) return false;
         return true;
     }
 
     void KinovaRosController::kinovaCoordinatesCallback(const geometry_msgs::PoseStamped &pose) {
 
     }
+
+
+    void KinovaRosController::kinovaMotion(){
+        
+    }
+
+    enum OperationState {
+        ready,
+        approaching,
+        insertion,
+        opening,
+        extracting,
+    };
 }

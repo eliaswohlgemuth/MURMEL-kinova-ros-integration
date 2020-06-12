@@ -7,6 +7,10 @@ int main(int argc, char** argv)
     ros::NodeHandle nodeHandle("~");
 
     kinova_ros_murmel::KinovaRosController kinovaRosController(nodeHandle);
+    while(ros::ok()){
+        ros::spinOnce();
+        kinovaRosController.kinovaMotion();
+    }
 
     ros::spin();
     return 0;

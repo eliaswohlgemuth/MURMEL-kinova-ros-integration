@@ -62,6 +62,8 @@ find_package(catkin REQUIRED COMPONENTS
  	add_service_files(
 		FILES
 		HomeArm.srv
+		ConnectionCheck.srv
+		CameraMode.srv
  )
 
 # Generate actions in the 'action' folder
