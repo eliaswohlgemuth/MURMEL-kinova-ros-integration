@@ -3,12 +3,14 @@
 #include <ros/ros.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <kinova_ros_murmel/HomeArm.h>
+#include <kinova_ros_murmel/CameraCoordinates.h>
 #include <kinova_ros_murmel/ConnectionCheck.h>
 #include <kinova_ros_murmel/CameraMode.h>
 
 #include <actionlib/client/simple_action_client.h>
 #include <actionlib/client/terminal_state.h>
 #include <kinova_ros_murmel/ArmPoseAction.h>
+#include <kinova_ros_murmel/ArmJointAnglesAction.h>
 // #include messages
 
 
@@ -18,7 +20,7 @@ class KinovaRosController {
     public:
         KinovaRosController(ros::NodeHandle &nodeHandle);
         ~KinovaRosController(){}
-        void kinovaMotion();
+        void kinovaMotion(); // contains Felix Kueblers logic to perform mulleimer opening sequence
 
         bool readParameters();
         bool isHomed();
@@ -27,21 +29,25 @@ class KinovaRosController {
     private:
         ros::NodeHandle nodeHandle_;
         // camera communication
-        ros::Subscriber camera_coordinates_subscriber_;
-        ros::ServiceClient camera_mode_client;
-        ros::ServiceClient connection_check_client;
+        ros::ServiceClient camera_coordinates_client;     // get camera coordinates
+        ros::ServiceClient camera_mode_client;              // send cameras operating mode 
+        ros::ServiceClient connection_check_client;         // checks client.isConnected()
         // kinova communication
+        actionlib::SimpleActionClient<kinova_ros_murmel::ArmJointAnglesAction> joint_angles_client;
+        actionlib::SimpleActionClient<kinova_ros_murmel::ArmPoseAction> arm_pose_client;
         ros::Subscriber kinova_coordinates_subscriber_;
+
+
         const int queue_size_ = 10;
 
         //custom home postition coordinates
-        double home_x_;
-        double home_y_;
-        double home_z_;
-        double home_quat_x_;
-        double home_quat_y_;
-        double home_quat_z_;
-        double home_quat_w_;
+        const float actuator1_ = 275;
+        const float actuator2_ = 200;
+        const float actuator3_ = 25;
+        const float actuator4_ = 180;
+        const float actuator5_ = 268;
+        const float actuator6_ = 180;
+        const float actuator7_ = 0;
 
         // coordinates from orbecc camera
 

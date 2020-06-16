@@ -11,7 +11,6 @@ int main(int argc, char** argv)
         ros::spinOnce();
         kinovaRosController.kinovaMotion();
     }
-
-    ros::spin();
+    
     return 0;
 }
