@@ -24,27 +24,27 @@ KinovaRosController::KinovaRosController(ros::NodeHandle &nodeHandle)
     home_arm_client = nodeHandle_.serviceClient<kinova_ros_murmel::HomeArm>("in/home_arm");
 
 
-    // move to manually chosen start position, which points at the tool of mulleimer
-    kinova_ros_murmel::ArmJointAnglesGoal home_goal;
-    home_goal.angles.joint1 = actuator1_;
-    home_goal.angles.joint2 = actuator2_;
-    home_goal.angles.joint3 = actuator3_;
-    home_goal.angles.joint4 = actuator4_;
-    home_goal.angles.joint5 = actuator5_;
-    home_goal.angles.joint6 = actuator6_;
-    home_goal.angles.joint7 = actuator7_;
-    joint_angles_client.sendGoal(home_goal);
+    // // move to manually chosen start position, which points at the tool of mulleimer
+    // kinova_ros_murmel::ArmJointAnglesGoal home_goal;
+    // home_goal.angles.joint1 = actuator1_;
+    // home_goal.angles.joint2 = actuator2_;
+    // home_goal.angles.joint3 = actuator3_;
+    // home_goal.angles.joint4 = actuator4_;
+    // home_goal.angles.joint5 = actuator5_;
+    // home_goal.angles.joint6 = actuator6_;
+    // home_goal.angles.joint7 = actuator7_;
+    // joint_angles_client.sendGoal(home_goal);
 
-    bool finished_before_timeout = joint_angles_client.waitForResult(ros::Duration(10.0));
-    if (finished_before_timeout)
-    {
-        actionlib::SimpleClientGoalState state = joint_angles_client.getState();
-        ROS_INFO("Homing arm finished: %s", state.toString().c_str());
-    }
-    else
-    {
-        ROS_INFO("Homing arm did not finfish before time out");
-    }
+    // bool finished_before_timeout = joint_angles_client.waitForResult(ros::Duration(10.0));
+    // if (finished_before_timeout)
+    // {
+    //     actionlib::SimpleClientGoalState state = joint_angles_client.getState();
+    //     ROS_INFO("Homing arm finished: %s", state.toString().c_str());
+    // }
+    // else
+    // {
+    //     ROS_INFO("Homing arm did not finfish before time out");
+    // }
 }
 
 
@@ -60,7 +60,7 @@ void KinovaRosController::kinovaCoordinatesCallback(const geometry_msgs::PoseSta
 
 void KinovaRosController::kinovaMotion(){
     if (op_state_ == "ready") {
-        ros::Duration(2).sleep;
+        ros::Duration(2).sleep();
         return;
     }
     else if (op_state_ == "retracted"){

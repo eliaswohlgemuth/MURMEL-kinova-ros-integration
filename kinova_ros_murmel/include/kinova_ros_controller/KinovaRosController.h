@@ -27,14 +27,18 @@ class KinovaRosController {
 
         geometry_msgs::Quaternion EulerXYZ2Quaternions(geometry_msgs::Point orientation); // point as type fits for describing 
 
-            bool readParameters();
+        bool readParameters();
         bool isHomed();
-        
+
+        std::string getOpstate()
+        {
+            return op_state_;
+        }
 
     private:
         ros::NodeHandle nodeHandle_;
         // camera communication
-        ros::ServiceClient camera_coordinates_client;     // get camera coordinates
+        ros::ServiceClient camera_coordinates_client;       // get camera coordinates
         ros::ServiceClient camera_mode_client;              // send cameras operating mode 
         ros::ServiceClient connection_check_client;         // checks client.isConnected()
         // kinova communication
@@ -98,6 +102,8 @@ class KinovaRosController {
 
         void kinovaCoordinatesCallback(const geometry_msgs::PoseStamped& pose);
         void cameraCoordinatesCallback(const geometry_msgs::PoseStamped& pose);
+
+        
         
 };
 }
