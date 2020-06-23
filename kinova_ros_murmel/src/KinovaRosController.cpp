@@ -3,7 +3,7 @@
 namespace kinova_ros_murmel {
 
 KinovaRosController::KinovaRosController(ros::NodeHandle &nodeHandle)
-    : nodeHandle_(nodeHandle), joint_angles_client("joint_angles", true), arm_pose_client("tool_pose", true)
+    : nodeHandle_(nodeHandle), joint_angles_client("j2n6s300_driver/joints_action/joint_angles", true), arm_pose_client("tool_pose", true)
 {
     //wait for launch of jaco to complete, since likely to take longer than current node to start
 
@@ -164,7 +164,7 @@ void KinovaRosController::initHome() {
 
 void KinovaRosController::sendRetracted() {
     ROS_INFO("Waiting for joint_angles_action server to start.");
-    joint_angles_client.waitForServer();
+    joint_angles_client.waitForServer();        // needs multithreading, see waitForServer() documentation
 
     ROS_INFO("joint_angles_action server reached.");
 
