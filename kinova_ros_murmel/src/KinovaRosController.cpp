@@ -3,7 +3,9 @@
 namespace kinova_ros_murmel {
 
 KinovaRosController::KinovaRosController(ros::NodeHandle &nodeHandle)
-    : nodeHandle_(nodeHandle), joint_angles_client("j2n6s300_driver/joints_action/joint_angles", true), arm_pose_client("tool_pose", true)
+    : nodeHandle_(nodeHandle), 
+    joint_angles_client("j2n6s300_driver/joints_action/joint_angles", true), 
+    arm_pose_client("tool_pose", true)
 {
     //wait for launch of jaco to complete, since likely to take longer than current node to start
 
@@ -16,13 +18,18 @@ KinovaRosController::KinovaRosController(ros::NodeHandle &nodeHandle)
 
 
     // ROS communication setup for camera
-    connection_check_client = nodeHandle_.serviceClient<kinova_ros_murmel::ConnectionCheck>("check_connection");
     camera_mode_client = nodeHandle_.serviceClient<kinova_ros_murmel::CameraMode>("set_camera_mode");
     camera_coordinates_client = nodeHandle_.serviceClient<kinova_ros_murmel::CameraCoordinates>("get_corrdinates");
 
     // ROS communication setup for kinova
     home_arm_client = nodeHandle_.serviceClient<kinova_ros_murmel::HomeArm>("in/home_arm");
 
+    // create Exp-filters and PID controllers, could make implemenation of no-args constructor necessary
+    f_x = f_y = f_r = f_theta_x = f_theta_y = ExponentialFilter(exp_w);
+    p_x = p_y = p_z = PIDController(pid_p, pid_i, pid_d);
+    p_theta_x = p_theta_y = PIDController(0.01, pid_i, pid_d);
+
+    is_first_init = true;
 
     // // move to manually chosen start position, which points at the tool of mulleimer
     // kinova_ros_murmel::ArmJointAnglesGoal home_goal;
@@ -59,16 +66,24 @@ void KinovaRosController::kinovaCoordinatesCallback(const geometry_msgs::PoseSta
 
 
 void KinovaRosController::kinovaMotion(){
-    if (op_state_ == "ready") {
+    if (op_state_ == "ready"){
         ros::Duration(2).sleep();
         return;
     }
-    else if (op_state_ == "retracted"){ // sendRetracted does not have self collision check
-        // check if arm is homed, if not -> home
+    if (op_state_ == "calibrate"){
+        initHome();
+        is_first_init = false;
+    }
+    else if (op_state_ == "retracted"){ // sendRetracted (joint_angles_client) does not have self collision check
+        // check if arm is homed, if not -> home for calibration
+        if(is_first_init){
+            initHome();
+            is_first_init = false;
+        }
         sendRetracted();
         return;
     }
-    else if (op_state_ == "approaching") {
+    else if (op_state_ == "open"){
         // start from homeposition to make sure arm does not self-collide on moving to retracted position
 
         // move to retracted to position camera onto keyhole
@@ -81,7 +96,7 @@ void KinovaRosController::kinovaMotion(){
         
 }
 
-// does not produce same results after using sendRetracted() -> change sendRetracetd to communicating trough Quaternions or implement own homing function
+// does not produce same results after using sendRetracted() -> change sendRetraceted() to communicating trough Quaternions or implement own homing function
 void KinovaRosController::initHome() {
     kinova_ros_murmel::HomeArm srv;
     if (home_arm_client.call(srv))
@@ -98,7 +113,7 @@ void KinovaRosController::initHome() {
 void KinovaRosController::sendRetracted() {
     ROS_INFO("Moving arm to retracted position.");
     ROS_INFO("Waiting for joint_angles_action server to start.");
-    joint_angles_client.waitForServer();        // needs multithreading, see waitForServer() documentation
+    joint_angles_client.waitForServer();
 
     ROS_INFO("joint_angles_action server reached.");
 
@@ -123,80 +138,61 @@ void KinovaRosController::sendRetracted() {
 }
 
 void KinovaRosController::openTrashcanDemo(){
+    //----------------------------------------------
+    // A P P R O A C H 
+    //----------------------------------------------
+        //send tracking command to camera
+        kinova_ros_murmel::CameraMode mode_srv;
+        mode_srv.request.request = "tracking";
+        camera_mode_client.call(mode_srv);
 
-    //following operation states result in movement of arm
-    kinova_ros_murmel::ConnectionCheck connect_srv;      //empty srv message, needed for call
-    if (connection_check_client.call(connect_srv)) {     // this call gets obsolte, when receiving camera data through ROS, not TCP
-       if (op_state_ == "approaching") {
-            ExponentialFilter f_x = ExponentialFilter(0.1);         // add path to declaration in Felix files
-            ExponentialFilter f_y = ExponentialFilter(0.1);
-            ExponentialFilter f_r = ExponentialFilter(0.1);
+        double probability = 0;
+        double dx = 0;
+        double dy = 0;
+        double dz = 0;
 
-            PIDController p_x = PIDController(0.002, 0, 0);
-            PIDController p_y = PIDController(0.002, 0, 0);
-            PIDController p_z = PIDController(0.1, 0, 0);
+        double theta_x = 0;
+        double theta_y = 0;
 
-            //send tracking command to camera
-            kinova_ros_murmel::CameraMode mode_srv;
-            mode_srv.request.camera_mode_request = "tracking";
-            camera_mode_client.call(mode_srv);
 
-            while(connection_check_client.call(connect_srv)) {
-                double dx = 0;
-                double dy = 0;
-                double dz = 0;
+        // receive Point coordinates from camera
+        kinova_ros_murmel::CameraCoordinates coord_srv;
+        camera_coordinates_client.call(coord_srv);      // add catching if call does not succeed
+        probability = coord_srv.response.result.
+        dx = coord_srv.response.result.x / 1000;        // convert to meters
+        dy = coord_srv.response.result.y / 1000;
+        dz = -1 * coord_srv.response.result.z / 1000;          // needs to be inverted
 
-                // receive Point coordinates from camera
-                kinova_ros_murmel::CameraCoordinates coord_srv;
-                camera_coordinates_client.call(coord_srv);      // add catching if call does not succeed
-                dx = coord_srv.response.result.x;
-                dy = coord_srv.response.result.y;
-                dz = -1 * coord_srv.response.result.z;          // needs to be inverted
+        //calculate filtered values
+        dx = f_x.calculate(dx);                         // function calculate() from ExponentialFilter
+        dy = f_y.calculate(dy);
+        dz = f_r.calculate(dz);
 
-                //calculate filtered values
-                dx = f_x.calculate(dx);                         // function calculate() from ExponentialFilter
-                dy = f_y.calculate(dy);
-                dz = f_r.calculate(dz);
+        //calculate controll values
+        dx = p_x.calculate(offset_x - dx);
+        dy = p_y.calculate(offset_y - dy);
+        dz = p_z.calculate(offset_z - dz);
 
-                //calculate controll values
-                dx = p_x.calculate(offset_x - dx);
-                dy = p_y.calculate(offset_y - dy);
-                dz = p_z.calculate(offset_z - dz);
+        ROS_INFO_STREAM("dx: " << dx);
+        ROS_INFO_STREAM("dy: " << dy);
+        ROS_INFO_STREAM("dz: " << dz);
 
-                ROS_INFO_STREAM("dx: " << dx);
-                ROS_INFO_STREAM("dy: " << dy);
-                ROS_INFO_STREAM("dz: " << dz);
-
-                //change op_state
-                if (dz <= 0){
-                    op_state_ = "insertion";
-                    break;
-                }
-
-                // only move forward if robot is centered on keyhole
-                if(!(abs(dx) < x_y_thresh && abs(dy) < x_y_thresh)){
-                    dz = 0;
-                }
-                else if(dz < 0.2) {
-                    dz = 0.2;
-                }
-
-                // get current coordinates
-                kinova_ros_murmel::CameraCoordinates coord_srv;
-                if(camera_coordinates_client.call(coord_srv)){
-                    camera_x = coord_srv.response.result.x;
-                    camera_y = coord_srv.response.result.y;
-                    camera_z = coord_srv.response.result.z;
-                }
-                // send coordinates to tool_pose_action server
-
-            }
-            ROS_INFO("TCP connection lost.");
+        // only move forward if robot is centered on keyhole
+        if(!(abs(dx) < x_y_thresh && abs(dy) < x_y_thresh)){
+            dz = 0;
         }
-        else if(op_state_ == "insertion") {
-
+        else if(dz < 0.2) {
+            dz = 0.2;
         }
 
+        // get current coordinates
+        kinova_ros_murmel::CameraCoordinates coord_srv;
+        if(camera_coordinates_client.call(coord_srv)){
+            camera_x = coord_srv.response.result.x;
+            camera_y = coord_srv.response.result.y;
+            camera_z = coord_srv.response.result.z;
+        }
+        ROS_INFO("TCP connection lost.");
     }
     else {
         ROS_INFO("TCP connection with camera not established. Cannot start movement.");
@@ -209,9 +205,8 @@ geometry_msgs::Quaternion KinovaRosController::EulerXYZ2Quaternions(geometry_msg
 
 enum OperationState {
     ready,
-    approaching,
-    insertion,
-    opening,
-    extracting,
+    calibrate,
+    retracted,
+    open,
 };
 }

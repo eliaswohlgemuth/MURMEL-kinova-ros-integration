@@ -7,6 +7,7 @@ int main(int argc, char** argv)
     ros::NodeHandle nodeHandle("~");
 
     kinova_ros_murmel::KinovaRosController kinovaRosController(nodeHandle);
+
     while(ros::ok()){
         kinovaRosController.readParameters();
         ROS_INFO_STREAM("Node running. Op_state: " << kinovaRosController.getOpstate());

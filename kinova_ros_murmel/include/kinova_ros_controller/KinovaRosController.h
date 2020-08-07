@@ -47,16 +47,16 @@ class KinovaRosController {
         ros::ServiceClient home_arm_client;
         ros::Subscriber kinova_coordinates_subscriber_;
 
-
+        bool is_first_init;
         const int queue_size_ = 10;
 
         // current camera coordinates
-        double camera_x;
-        double camera_y;
-        double camera_z;
-        double camera_theta_x; 
-        double camera_theta_z;
-        double camera_theta_y;
+        // double camera_x;
+        // double camera_y;
+        // double camera_z;
+        // double camera_theta_x;
+        // double camera_theta_z;
+        // double camera_theta_y;
 
         //custom home postition coordinates
         const float actuator1_ = 275;
@@ -83,6 +83,9 @@ class KinovaRosController {
         const double corrections_offset_x = -0.013;
         const double corrections_offset_y = -0.09;
         const double corrections_offset_z = dz_min;
+
+        ExponentialFilter f_prob, f_x, f_y, f_r, f_theta_x, f_theta_y;
+        PIDController p_x, p_y, p_z, p_theta_x, p_theta_y;
 
         // x and y control error threshold
         const int x_y_thresh = 0.3;
