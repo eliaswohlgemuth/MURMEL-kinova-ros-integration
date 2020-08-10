@@ -1,7 +1,8 @@
 #include "ExponentialFilter.hpp"
 
-
-
+ExponentialFilter::ExponentialFilter()
+	: initialized(false), s_out_old(0), w(0)
+{}
 
 ExponentialFilter::ExponentialFilter(double w): initialized(false), s_out_old(0), w(w)
 {}

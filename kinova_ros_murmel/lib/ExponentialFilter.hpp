@@ -30,6 +30,16 @@ class ExponentialFilter
 		*/
 		ExponentialFilter(double w);
 
+
+		/**
+		 * @brief Exponential filter no-args constructor
+		 * 
+		 * This constructor is provided as a default constructor, so that it can be invoked when a 
+		 * different class object is created containing ExpoentialFilter objects.
+		 */
+		ExponentialFilter();
+
+
 		/**
 		* @brief Exponential filter constructor destructor
 		*

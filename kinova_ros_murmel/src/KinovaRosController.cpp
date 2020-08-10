@@ -24,7 +24,7 @@ KinovaRosController::KinovaRosController(ros::NodeHandle &nodeHandle)
     // ROS communication setup for kinova
     home_arm_client = nodeHandle_.serviceClient<kinova_ros_murmel::HomeArm>("in/home_arm");
 
-    // create Exp-filters and PID controllers, could make implemenation of no-args constructor necessary
+    // create Exp-filters and PID controllers
     f_prob = f_x = f_y = f_z = f_theta_x = f_theta_y = ExponentialFilter(exp_w);
     p_x = p_y = p_z = PIDController(pid_p, pid_i, pid_d);
     p_theta_x = p_theta_y = PIDController(0.01, pid_i, pid_d);

@@ -11,6 +11,9 @@
 #include <actionlib/client/terminal_state.h>
 #include <kinova_ros_murmel/ArmPoseAction.h>
 #include <kinova_ros_murmel/ArmJointAnglesAction.h>
+
+#include <lib/ExponentialFilter.hpp>
+#include <lib/PIDController.hpp>
 // #include messages
 
 

@@ -31,6 +31,15 @@ class PIDController
 	
 	public:
 		/**
+		 * @brief PIDController no-args constructor
+		 * 
+		 * This constructor is provided as a default constructor, so that it can be invoked when a 
+		 * different class object is created containing PIDController instances.
+		 */
+		PIDController();
+
+
+		/**
 		* @brief PID Constructor
 		*
 		* Creates a PID controller for universal usage

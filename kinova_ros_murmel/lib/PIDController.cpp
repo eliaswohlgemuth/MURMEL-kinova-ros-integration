@@ -1,5 +1,8 @@
 #include "PIDController.hpp"
 
+PIDController::PIDController()
+	: Kp(0), KTi(0), KTd(0), e_sum(0), e_old(0), calculation_method(true)
+{}
 
 PIDController::PIDController(double Kp, double KTi, double KTd)
 : Kp(Kp), KTi(KTi), KTd(KTd), e_sum(0), e_old(0), calculation_method(true) {}
