@@ -64,7 +64,7 @@ find_package(catkin REQUIRED COMPONENTS
 		HomeArm.srv
 		ConnectionCheck.srv
 		CameraMode.srv
-		CameraCoordinates.srv
+		CameraData.srv
  )
 
 # Generate actions in the 'action' folder
@@ -112,7 +112,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-  INCLUDE_DIRS include
+  INCLUDE_DIRS include lib
   LIBRARIES kinova_ros_murmel
   CATKIN_DEPENDS roscpp rospy std_msgs geometry_msgs message_runtime
 #  DEPENDS system_lib
@@ -126,6 +126,7 @@ catkin_package(
 ## Your package locations should be listed before other locations
 include_directories(
  include
+ lib
  ${catkin_INCLUDE_DIRS}
 )
 

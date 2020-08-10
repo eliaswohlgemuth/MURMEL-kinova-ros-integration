@@ -19,39 +19,17 @@ KinovaRosController::KinovaRosController(ros::NodeHandle &nodeHandle)
 
     // ROS communication setup for camera
     camera_mode_client = nodeHandle_.serviceClient<kinova_ros_murmel::CameraMode>("set_camera_mode");
-    camera_coordinates_client = nodeHandle_.serviceClient<kinova_ros_murmel::CameraCoordinates>("get_corrdinates");
+    camera_data_client = nodeHandle_.serviceClient<kinova_ros_murmel::CameraData>("get_corrdinates");
 
     // ROS communication setup for kinova
     home_arm_client = nodeHandle_.serviceClient<kinova_ros_murmel::HomeArm>("in/home_arm");
 
     // create Exp-filters and PID controllers, could make implemenation of no-args constructor necessary
-    f_x = f_y = f_r = f_theta_x = f_theta_y = ExponentialFilter(exp_w);
+    f_prob = f_x = f_y = f_z = f_theta_x = f_theta_y = ExponentialFilter(exp_w);
     p_x = p_y = p_z = PIDController(pid_p, pid_i, pid_d);
     p_theta_x = p_theta_y = PIDController(0.01, pid_i, pid_d);
 
     is_first_init = true;
-
-    // // move to manually chosen start position, which points at the tool of mulleimer
-    // kinova_ros_murmel::ArmJointAnglesGoal home_goal;
-    // home_goal.angles.joint1 = actuator1_;
-    // home_goal.angles.joint2 = actuator2_;
-    // home_goal.angles.joint3 = actuator3_;
-    // home_goal.angles.joint4 = actuator4_;
-    // home_goal.angles.joint5 = actuator5_;
-    // home_goal.angles.joint6 = actuator6_;
-    // home_goal.angles.joint7 = actuator7_;
-    // joint_angles_client.sendGoal(home_goal);
-
-    // bool finished_before_timeout = joint_angles_client.waitForResult(ros::Duration(10.0));
-    // if (finished_before_timeout)
-    // {
-    //     actionlib::SimpleClientGoalState state = joint_angles_client.getState();
-    //     ROS_INFO("Homing arm finished: %s", state.toString().c_str());
-    // }
-    // else
-    // {
-    //     ROS_INFO("Homing arm did not finfish before time out");
-    // }
 }
 
 
@@ -137,15 +115,20 @@ void KinovaRosController::sendRetracted() {
     }
 }
 
+
 void KinovaRosController::openTrashcanDemo(){
     //----------------------------------------------
     // A P P R O A C H 
     //----------------------------------------------
-        //send tracking command to camera
-        kinova_ros_murmel::CameraMode mode_srv;
-        mode_srv.request.request = "tracking";
-        camera_mode_client.call(mode_srv);
+    //send tracking command to camera
+    kinova_ros_murmel::CameraMode mode_srv;
+    mode_srv.request.request = "tracking";
+    camera_mode_client.call(mode_srv);
 
+    // mystic counter 
+    int counter = 0;
+
+    while(true){
         double probability = 0;
         double dx = 0;
         double dy = 0;
@@ -156,46 +139,59 @@ void KinovaRosController::openTrashcanDemo(){
 
 
         // receive Point coordinates from camera
-        kinova_ros_murmel::CameraCoordinates coord_srv;
-        camera_coordinates_client.call(coord_srv);      // add catching if call does not succeed
-        probability = coord_srv.response.result.
-        dx = coord_srv.response.result.x / 1000;        // convert to meters
-        dy = coord_srv.response.result.y / 1000;
-        dz = -1 * coord_srv.response.result.z / 1000;          // needs to be inverted
-
-        //calculate filtered values
-        dx = f_x.calculate(dx);                         // function calculate() from ExponentialFilter
-        dy = f_y.calculate(dy);
-        dz = f_r.calculate(dz);
-
-        //calculate controll values
-        dx = p_x.calculate(offset_x - dx);
-        dy = p_y.calculate(offset_y - dy);
-        dz = p_z.calculate(offset_z - dz);
-
-        ROS_INFO_STREAM("dx: " << dx);
-        ROS_INFO_STREAM("dy: " << dy);
-        ROS_INFO_STREAM("dz: " << dz);
-
-        // only move forward if robot is centered on keyhole
-        if(!(abs(dx) < x_y_thresh && abs(dy) < x_y_thresh)){
-            dz = 0;
+        kinova_ros_murmel::CameraData data_srv;
+        if(camera_data_client.call(data_srv)){
+            probability = data_srv.response.probability;
+            dx = data_srv.response.coordinates.x / 1000;          // convert to meters
+            dy = data_srv.response.coordinates.y / 1000;
+            dz = -1 * data_srv.response.coordinates.z / 1000;     // needs to be inverted
+            theta_x = data_srv.response.theta_x;
+            theta_y = data_srv.response.theta_y;
         }
-        else if(dz < 0.2) {
-            dz = 0.2;
-        }
+        else {
+            ROS_INFO("Could not receive camera data.");           // !!diverge program flow accordingly!!
+        }           
 
-        // get current coordinates
-        kinova_ros_murmel::CameraCoordinates coord_srv;
-        if(camera_coordinates_client.call(coord_srv)){
-            camera_x = coord_srv.response.result.x;
-            camera_y = coord_srv.response.result.y;
-            camera_z = coord_srv.response.result.z;
+        // SKIPPING OUTPUT OF STRINGSTREAM
+        
+        if(counter++ > 10 && probability > 0){
+            // calculate filtered values
+            probability = f_prob.calculate(probability);
+            dx = f_x.calculate(dx);
+            dy = f_y.calculate(dy);
+            dz = f_z.calculate(dz);
+            theta_x = f_theta_x.calculate(theta_x);
+            theta_y = f_theta_y.calculate(theta_y);
+
+            // calculate control values
+            // speed needs to be influenced by distance
+            // values are speed values from here on
+            dx = p_x.calculate(controller_offset_x - dx);
+            dy = p_y.calculate(controller_offset_y - dy);
+            dz = p_z.calculate(controller_offset_z - dz);
+            theta_x = p_theta_x.calculate(controller_offset_theta_x - theta_x);
+            theta_y = p_theta_y.calculate(controller_offset_theta_y - theta_y);
+
+            // move forward to insertion
+            if(dz <= 0)
+            {
+                break;
+            }
+
+            // only move forward if robot is centered on keyhole
+            if(!((abs(dx) < x_y_thresh && abs(dy) < x_y_thresh)))   // what is this condition checking?
+            {  
+                dz = 0;
+            }
+            else if(dz < 0.2)      // continuing with 0.2, is the next iteration changing dz to 0? otherwise endless loop
+            {
+                // speed below 0.1 are not usable for servoing
+                dz = 0.2;
+            }
+
+            // how does speed get translated into total distance moved? 
+            
         }
-        ROS_INFO("TCP connection lost.");
-    }
-    else {
-        ROS_INFO("TCP connection with camera not established. Cannot start movement.");
     }
 }
 

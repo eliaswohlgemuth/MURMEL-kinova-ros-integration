@@ -3,7 +3,7 @@
 #include <ros/ros.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <kinova_ros_murmel/HomeArm.h>
-#include <kinova_ros_murmel/CameraCoordinates.h>
+#include <kinova_ros_murmel/CameraData.h>
 #include <kinova_ros_murmel/ConnectionCheck.h>
 #include <kinova_ros_murmel/CameraMode.h>
 
@@ -38,9 +38,8 @@ class KinovaRosController {
     private:
         ros::NodeHandle nodeHandle_;
         // camera communication
-        ros::ServiceClient camera_coordinates_client;       // get camera coordinates
+        ros::ServiceClient camera_data_client;       // get camera coordinates
         ros::ServiceClient camera_mode_client;              // send cameras operating mode 
-        ros::ServiceClient connection_check_client;         // checks client.isConnected()
         // kinova communication
         actionlib::SimpleActionClient<kinova_ros_murmel::ArmJointAnglesAction> joint_angles_client;
         actionlib::SimpleActionClient<kinova_ros_murmel::ArmPoseAction> arm_pose_client;
@@ -74,17 +73,17 @@ class KinovaRosController {
         const double dz_min = 0.04;
 
         // offset for servoing
-        const int offset_x = 0;
-        const int offset_y = 0;
-        const int offset_z = -0.08 - dz_min;
-        const double constroller_offset_theta_x = 0;
-        const double constroller_offset_theta_y = 0;
+        const int controller_offset_x = 0;
+        const int controller_offset_y = 0;
+        const int controller_offset_z = -0.08 - dz_min;
+        const double controller_offset_theta_x = 0;
+        const double controller_offset_theta_y = 0;
 
-        const double corrections_offset_x = -0.013;
-        const double corrections_offset_y = -0.09;
-        const double corrections_offset_z = dz_min;
+        const double correction_offset_x = -0.013;
+        const double correction_offset_y = -0.09;
+        const double correction_offset_z = dz_min;
 
-        ExponentialFilter f_prob, f_x, f_y, f_r, f_theta_x, f_theta_y;
+        ExponentialFilter f_prob, f_x, f_y, f_z, f_theta_x, f_theta_y;
         PIDController p_x, p_y, p_z, p_theta_x, p_theta_y;
 
         // x and y control error threshold
