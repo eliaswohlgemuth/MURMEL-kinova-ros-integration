@@ -56,6 +56,7 @@ find_package(catkin REQUIRED COMPONENTS
  add_message_files(
    FILES
    JointAngles.msg
+	 PoseVelocity.msg
  )
 
 # Generate services in the 'srv' folder
@@ -146,6 +147,8 @@ include_directories(
  add_executable(${PROJECT_NAME} 
 		src/${PROJECT_NAME}_node.cpp
 		src/KinovaRosController.cpp
+		lib/ExponentialFilter.cpp
+		lib/PIDController.cpp
 )
 
 ## Rename C++ executable without prefix

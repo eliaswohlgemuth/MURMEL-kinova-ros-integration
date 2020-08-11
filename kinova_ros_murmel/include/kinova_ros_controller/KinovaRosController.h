@@ -1,7 +1,10 @@
 #pragma once
 
 #include <ros/ros.h>
+
 #include <geometry_msgs/PoseStamped.h>
+
+
 #include <kinova_ros_murmel/HomeArm.h>
 #include <kinova_ros_murmel/CameraData.h>
 #include <kinova_ros_murmel/ConnectionCheck.h>
@@ -12,9 +15,8 @@
 #include <kinova_ros_murmel/ArmPoseAction.h>
 #include <kinova_ros_murmel/ArmJointAnglesAction.h>
 
-#include <lib/ExponentialFilter.hpp>
-#include <lib/PIDController.hpp>
-// #include messages
+#include <ExponentialFilter.hpp>
+#include <PIDController.hpp>
 
 
 namespace kinova_ros_murmel {

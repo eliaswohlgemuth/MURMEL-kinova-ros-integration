@@ -189,7 +189,8 @@ void KinovaRosController::openTrashcanDemo(){
                 dz = 0.2;
             }
 
-            // how does speed get translated into total distance moved? 
+            // how does speed get translated into total distance moved?
+
             
         }
     }
