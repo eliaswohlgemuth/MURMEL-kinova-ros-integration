@@ -17,12 +17,14 @@ KinovaRosController::KinovaRosController(ros::NodeHandle &nodeHandle)
     }
 
 
-    // ROS communication setup for camera
+    // ROS communication setup with camera
     camera_mode_client = nodeHandle_.serviceClient<kinova_ros_murmel::CameraMode>("set_camera_mode");
     camera_data_client = nodeHandle_.serviceClient<kinova_ros_murmel::CameraData>("get_corrdinates");
 
-    // ROS communication setup for kinova
+    // ROS communication setup with kinova
     home_arm_client = nodeHandle_.serviceClient<kinova_ros_murmel::HomeArm>("in/home_arm");
+    cartesian_velocity_publisher_ = nodeHandle_.advertise<kinova_ros_murmel::PoseVelocity>("in/cartesian_velocity", 2);
+    kinova_coordinates_subscriber_ = nodeHandle_.subscribe("out/cartesian_command", 1, &KinovaRosController::kinovaCoordinatesCallback, this);
 
     // create Exp-filters and PID controllers
     f_prob = f_x = f_y = f_z = f_theta_x = f_theta_y = ExponentialFilter(exp_w);
@@ -30,6 +32,7 @@ KinovaRosController::KinovaRosController(ros::NodeHandle &nodeHandle)
     p_theta_x = p_theta_y = PIDController(0.01, pid_i, pid_d);
 
     is_first_init = true;
+    kinova_coordinates.InitStruct();
 }
 
 
@@ -38,8 +41,13 @@ bool KinovaRosController::readParameters(){
     return true;
 }
 
-void KinovaRosController::kinovaCoordinatesCallback(const geometry_msgs::PoseStamped &pose) {
-
+void KinovaRosController::kinovaCoordinatesCallback(const kinova_msgs::KinovaPose &coordinates) {
+    kinova_coordinates.X = coordinates.X;
+    kinova_coordinates.Y = coordinates.Y;
+    kinova_coordinates.Z = coordinates.Z;
+    kinova_coordinates.X = coordinates.ThetaX;
+    kinova_coordinates.Y = coordinates.ThetaY;
+    kinova_coordinates.Z = coordinates.ThetaZ;
 }
 
 
@@ -125,7 +133,7 @@ void KinovaRosController::openTrashcanDemo(){
     mode_srv.request.request = "tracking";
     camera_mode_client.call(mode_srv);
 
-    // mystic counter 
+    // counter that is used to disregard first few camera values, since they are bogus
     int counter = 0;
 
     while(true){
@@ -133,7 +141,6 @@ void KinovaRosController::openTrashcanDemo(){
         double dx = 0;
         double dy = 0;
         double dz = 0;
-
         double theta_x = 0;
         double theta_y = 0;
 
@@ -155,7 +162,7 @@ void KinovaRosController::openTrashcanDemo(){
         // SKIPPING OUTPUT OF STRINGSTREAM
         
         if(counter++ > 10 && probability > 0){
-            // calculate filtered values
+            // calculate filtered values, which are distances [m]
             probability = f_prob.calculate(probability);
             dx = f_x.calculate(dx);
             dy = f_y.calculate(dy);
@@ -164,33 +171,56 @@ void KinovaRosController::openTrashcanDemo(){
             theta_y = f_theta_y.calculate(theta_y);
 
             // calculate control values
-            // speed needs to be influenced by distance
-            // values are speed values from here on
+            // values are speed values from here on [m/s]
             dx = p_x.calculate(controller_offset_x - dx);
             dy = p_y.calculate(controller_offset_y - dy);
             dz = p_z.calculate(controller_offset_z - dz);
             theta_x = p_theta_x.calculate(controller_offset_theta_x - theta_x);
             theta_y = p_theta_y.calculate(controller_offset_theta_y - theta_y);
 
-            // move forward to insertion
+            /** dz being negative results from the algorithm on the camera, meaning that the distance to keyhole is less
+             * than 1m, as a result the depth sensor is not working properly anymore
+             */
             if(dz <= 0)
             {
-                break;
+                break;  // move forward to insertion
             }
 
-            // only move forward if robot is centered on keyhole
-            if(!((abs(dx) < x_y_thresh && abs(dy) < x_y_thresh)))   // what is this condition checking?
+            /** only move forward if robot is centered on keyhole
+             * This condition checks, if the keyhole is in a field of tolerance. If not, corrections have to be made in dx
+             * and dy and no further apporaching the muelleimer -> dz=0
+             */
+            if(!((abs(dx) < x_y_thresh && abs(dy) < x_y_thresh))) 
             {  
                 dz = 0;
             }
-            else if(dz < 0.2)      // continuing with 0.2, is the next iteration changing dz to 0? otherwise endless loop
+            /** Has nothing to do with previous if-statement. It just checks, if dz is too small for use. Else is needed to
+             * not overwrite the previously set dz=0
+             */
+            else if(dz < 0.2)
             {
                 // speed below 0.1 are not usable for servoing
                 dz = 0.2;
             }
 
-            // how does speed get translated into total distance moved?
+            // create PoseVelocity object containing target velocities
+            PoseVelocity target_velocity;
+            target_velocity.twist_linear_x = dx;
+            target_velocity.twist_linear_y = dy;
+            target_velocity.twist_linear_z = dz;
+            target_velocity.twist_angular_x = theta_x;
+            target_velocity.twist_angular_y = theta_y;
+            target_velocity.twist_angular_z = 0;
 
+            /** Get current coordinates by calling kinovaCoordinatesCallback(). Since spinOnce() is blocking, coordinates will
+             * be updated upon next line
+             * If callbackqueue gets to long, seperate callback queue exclusively for kinovaCoordinatesCallback() could be created, 
+             * so that this step does not take to much time.
+             */
+            ros::spinOnce();
+
+            PoseVelocity command_pos = convertReferenceFrame(target_velocity);
+            
             
         }
     }
@@ -199,6 +229,7 @@ void KinovaRosController::openTrashcanDemo(){
 geometry_msgs::Quaternion KinovaRosController::EulerXYZ2Quaternions(geometry_msgs::Point orientation) {
     
 }
+
 
 enum OperationState {
     ready,

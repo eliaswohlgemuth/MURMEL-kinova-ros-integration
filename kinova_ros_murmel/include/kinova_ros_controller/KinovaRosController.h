@@ -3,7 +3,8 @@
 #include <ros/ros.h>
 
 #include <geometry_msgs/PoseStamped.h>
-
+#include <kinova_ros_murmel/PoseVelocity.h>
+#include <kinova_msgs/KinovaPose.h>
 
 #include <kinova_ros_murmel/HomeArm.h>
 #include <kinova_ros_murmel/CameraData.h>
@@ -17,6 +18,7 @@
 
 #include <ExponentialFilter.hpp>
 #include <PIDController.hpp>
+#include <KinovaTypes.h>
 
 
 namespace kinova_ros_murmel {
@@ -42,25 +44,27 @@ class KinovaRosController {
 
     private:
         ros::NodeHandle nodeHandle_;
+
         // camera communication
         ros::ServiceClient camera_data_client;       // get camera coordinates
         ros::ServiceClient camera_mode_client;              // send cameras operating mode 
+
         // kinova communication
         actionlib::SimpleActionClient<kinova_ros_murmel::ArmJointAnglesAction> joint_angles_client;
         actionlib::SimpleActionClient<kinova_ros_murmel::ArmPoseAction> arm_pose_client;
+
         ros::ServiceClient home_arm_client;
+
         ros::Subscriber kinova_coordinates_subscriber_;
+
+        ros::Publisher cartesian_velocity_publisher_;
+    
 
         bool is_first_init;
         const int queue_size_ = 10;
 
-        // current camera coordinates
-        // double camera_x;
-        // double camera_y;
-        // double camera_z;
-        // double camera_theta_x;
-        // double camera_theta_z;
-        // double camera_theta_y;
+        // current kinova coordinates
+        CartesianInfo kinova_coordinates;
 
         //custom home postition coordinates
         const float actuator1_ = 275;
@@ -106,11 +110,6 @@ class KinovaRosController {
         // differential value of PID controller
         const double pid_d = 0;
 
-
-        void kinovaCoordinatesCallback(const geometry_msgs::PoseStamped& pose);
-        void cameraCoordinatesCallback(const geometry_msgs::PoseStamped& pose);
-
-        
-        
+        void kinovaCoordinatesCallback(const kinova_msgs::KinovaPose &pose);
 };
 }
