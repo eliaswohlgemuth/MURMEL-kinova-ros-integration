@@ -6,6 +6,7 @@
                 "${workspaceFolder}/**",
                 "/home/eliaswohlgemuth/catkin_ws/src/MURMEL-kinova-ros-integration/kinova_ros_murmel",
                 "/opt/ros/kinetic/include",
+                "/usr/include/eigen3",
                 "/home/eliaswohlgemuth/catkin_ws/src/kinova-ros",
                 "/home/eliaswohlgemuth/catkin_ws/devel/include"
             ],

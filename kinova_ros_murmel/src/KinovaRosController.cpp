@@ -204,13 +204,13 @@ void KinovaRosController::openTrashcanDemo(){
             }
 
             // create PoseVelocity object containing target velocities
-            PoseVelocity target_velocity;
-            target_velocity.twist_linear_x = dx;
-            target_velocity.twist_linear_y = dy;
-            target_velocity.twist_linear_z = dz;
-            target_velocity.twist_angular_x = theta_x;
-            target_velocity.twist_angular_y = theta_y;
-            target_velocity.twist_angular_z = 0;
+            CartesianInfo target_velocity;
+            target_velocity.X = dx;
+            target_velocity.Y = dy;
+            target_velocity.Z = dz;
+            target_velocity.ThetaX = theta_x;
+            target_velocity.ThetaY = theta_y;
+            target_velocity.ThetaZ = 0;
 
             /** Get current coordinates by calling kinovaCoordinatesCallback(). Since spinOnce() is blocking, coordinates will
              * be updated upon next line
@@ -219,15 +219,90 @@ void KinovaRosController::openTrashcanDemo(){
              */
             ros::spinOnce();
 
-            PoseVelocity command_pos = convertReferenceFrame(target_velocity);
+            CartesianInfo target_velocity = convertReferenceFrame(target_velocity);
+            PoseVelocity command_pos = convert2PoseVelocity(target_velocity);
             
-            
+            cartesian_velocity_publisher_.publish(command_pos);
         }
     }
+
+    //----------------------------------------------
+    // I N S E R T
+    //----------------------------------------------
+    ROS_INFO("Inserting key.");
+
+    CartesianInfo target_pos;
+
+    target_pos.X = correction_offset_x;
+    target_pos.Y = correction_offset_z;
+    target_pos.Y = 0;
+    target_pos.ThetaX = 0;
+    target_pos.ThetaY = 0;
+    target_pos.ThetaZ = 0;
+
+    // get current cartesian position
+    ros::spinOnce();
+
+    CartesianInfo target_pos = convertReferenceFrame(target_pos);
+
+    target_pos.X += kinova_coordinates.X;
+    target_pos.Y += kinova_coordinates.Y;
+    target_pos.Z += kinova_coordinates.Z;
+    target_pos.ThetaX += kinova_coordinates.ThetaX;
+    target_pos.ThetaY += kinova_coordinates.ThetaY;
+    target_pos.ThetaZ += kinova_coordinates.ThetaZ;
+
+    geometry_msgs::PoseStamped command_pos;
+
+    // transform orientation into quaternions
+
+    // while(!isAtTarget()){
+    //     // send command to action server
+    //     // does server need absolute or relative coordinates?
+
+    // }
+
 }
 
-geometry_msgs::Quaternion KinovaRosController::EulerXYZ2Quaternions(geometry_msgs::Point orientation) {
+geometry_msgs::PoseStamped KinovaRosController::EulerXYZ2Quaternions(const CartesianInfo &target_pos) {
     
+}
+
+CartesianInfo KinovaRosController::convertReferenceFrame(const CartesianInfo &target_velocity){
+    CartesianInfo cmd_out;
+    cmd_out = target_velocity;
+
+    // transformation matrix between end effector and base frame is given by the end effector orientation
+    Eigen::Matrix3f orientation_robot;
+    orientation_robot = Eigen::AngleAxisf(kinova_coordinates.ThetaX, Eigen::Vector3f::UnitX())  // Thetas have to be normalized -> implement function similar to kinovas
+                        * Eigen::AngleAxisf(kinova_coordinates.ThetaY, Eigen::Vector3f::UnitY())
+                        * Eigen::AngleAxisf(kinova_coordinates.ThetaZ, Eigen::Vector3f::UnitZ());
+    
+    // translation vector in end effector frame
+    Eigen::Vector3f translation_vector_ee_frame(target_velocity.X, target_velocity.Y, target_velocity.Z);
+
+    // translation vector in base frame
+    Eigen::Vector3f translation_vector_base_frame(orientation_robot * translation_vector_ee_frame);
+
+    // update the x-y-z- part of the command
+    cmd_out.X = translation_vector_base_frame(0);
+    cmd_out.Y = translation_vector_base_frame(1);
+    cmd_out.Z = translation_vector_base_frame(2);
+
+    return cmd_out;
+}
+
+PoseVelocity KinovaRosController::convert2PoseVelocity(const CartesianInfo &target){
+    PoseVelocity command_pos;
+
+    command_pos.twist_linear_x = target.X;
+    command_pos.twist_linear_y = target.Y;
+    command_pos.twist_linear_z = target.Z;
+    command_pos.twist_angular_x = target.ThetaX;
+    command_pos.twist_angular_y = target.ThetaY;
+    command_pos.twist_angular_z = target.ThetaZ;
+
+    return command_pos;
 }
 
 

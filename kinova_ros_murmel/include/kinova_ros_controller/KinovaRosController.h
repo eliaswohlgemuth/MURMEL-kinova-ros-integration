@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ros/ros.h>
+#include <eigen3/Eigen/Dense>
 
 #include <geometry_msgs/PoseStamped.h>
 #include <kinova_ros_murmel/PoseVelocity.h>
@@ -32,7 +33,12 @@ class KinovaRosController {
         void initHome();
         void sendRetracted();
 
-        geometry_msgs::Quaternion EulerXYZ2Quaternions(geometry_msgs::Point orientation); // point as type fits for describing 
+        void kinovaCoordinatesCallback(const kinova_msgs::KinovaPose &pose);
+
+        CartesianInfo convertReferenceFrame(const CartesianInfo &target_velocity);
+        PoseVelocity convert2PoseVelocity(const CartesianInfo &target);
+
+        geometry_msgs::PoseStamped EulerXYZ2Quaternions(const CartesianInfo &target_pos); // point as type fits for describing 
 
         bool readParameters();
         bool isHomed();
@@ -110,6 +116,6 @@ class KinovaRosController {
         // differential value of PID controller
         const double pid_d = 0;
 
-        void kinovaCoordinatesCallback(const kinova_msgs::KinovaPose &pose);
+        
 };
 }
