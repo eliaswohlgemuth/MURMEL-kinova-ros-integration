@@ -2,19 +2,16 @@
 
 #include <ros/ros.h>
 #include <eigen3/Eigen/Dense>
-
 // msgs
 #include <geometry_msgs/PoseStamped.h>
 #include <kinova_ros_murmel/PoseVelocity.h>
 #include <kinova_ros_murmel/KinovaPose.h>
 #include <kinova_ros_murmel/JointAngles.h>
-
 // srv
 #include <kinova_ros_murmel/HomeArm.h>
 #include <kinova_ros_murmel/CameraData.h>
 #include <kinova_ros_murmel/ConnectionCheck.h>
 #include <kinova_ros_murmel/CameraMode.h>
-
 // action
 #include <actionlib/client/simple_action_client.h>
 #include <actionlib/client/terminal_state.h>
@@ -37,12 +34,10 @@ class KinovaRosController {
         void sendRetracted();
 
         void kinovaCoordinatesCallback(const KinovaPose &pose);
+        void kinovaAnglesCallback(const JointAngles &angles);
 
         void convertReferenceFrame(PoseVelocity &target_velocity);
         void convertReferenceFrame(KinovaPose &target_position);
-
-        bool isAtTarget(const JointAngles &target_angles);
-        bool isAtTarget(const KinovaPose &target_position);
 
         geometry_msgs::PoseStamped EulerXYZ2Quaternions(const KinovaPose &target_pos);
 
@@ -72,13 +67,12 @@ class KinovaRosController {
 
         ros::Publisher cartesian_velocity_publisher_;
     
-
         bool is_first_init;
         const int queue_size_ = 10;
 
         // kinova coordinates/angles, current after calling ros::spinOnce()
-        KinovaPose kinova_coordinates;      
-        JointAngles kinova_angles;
+        KinovaPose kinova_coordinates_;      // in m
+        JointAngles kinova_angles_;          // in deg
 
         //custom home postition coordinates
         const float actuator1_ = 275;

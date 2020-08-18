@@ -24,6 +24,7 @@ KinovaRosController::KinovaRosController(ros::NodeHandle &nodeHandle)
     home_arm_client_ = nodeHandle_.serviceClient<kinova_ros_murmel::HomeArm>("in/home_arm");
     cartesian_velocity_publisher_ = nodeHandle_.advertise<kinova_ros_murmel::PoseVelocity>("in/cartesian_velocity", 2);
     kinova_coordinates_subscriber_ = nodeHandle_.subscribe("out/cartesian_command", 1, &KinovaRosController::kinovaCoordinatesCallback, this);
+    kinova_angles_subscriber_ = nodeHandle_.subscribe("out/joint_angles", 1, &KinovaRosController::kinovaAnglesCallback, this);
 
     // create Exp-filters and PID controllers
     f_prob = f_x = f_y = f_z = f_theta_x = f_theta_y = ExponentialFilter(exp_w);
@@ -33,21 +34,10 @@ KinovaRosController::KinovaRosController(ros::NodeHandle &nodeHandle)
     is_first_init = true;
 }
 
-
 bool KinovaRosController::readParameters(){
     if(!nodeHandle_.getParam("op_state", op_state_)) return false;
     return true;
 }
-
-void KinovaRosController::kinovaCoordinatesCallback(const KinovaPose &coordinates) {
-    kinova_coordinates.X = coordinates.X;
-    kinova_coordinates.Y = coordinates.Y;
-    kinova_coordinates.Z = coordinates.Z;
-    kinova_coordinates.ThetaX = coordinates.ThetaX;
-    kinova_coordinates.ThetaY = coordinates.ThetaY;
-    kinova_coordinates.ThetaZ = coordinates.ThetaZ;
-}
-
 
 void KinovaRosController::kinovaMotion(){
     if (op_state_ == "ready"){
@@ -120,7 +110,6 @@ void KinovaRosController::sendRetracted() {
         ROS_INFO("Action did not finish before timeout.");
     }
 }
-
 
 void KinovaRosController::openTrashcanDemo(){
     //----------------------------------------------
@@ -246,12 +235,12 @@ void KinovaRosController::openTrashcanDemo(){
 
     convertReferenceFrame(target_pos);
 
-    target_pos.X += kinova_coordinates.X;
-    target_pos.Y += kinova_coordinates.Y;
-    target_pos.Z += kinova_coordinates.Z;
-    target_pos.ThetaX = kinova_coordinates.ThetaX;
-    target_pos.ThetaY = kinova_coordinates.ThetaY;
-    target_pos.ThetaZ = kinova_coordinates.ThetaZ;
+    target_pos.X += kinova_coordinates_.X;
+    target_pos.Y += kinova_coordinates_.Y;
+    target_pos.Z += kinova_coordinates_.Z;
+    target_pos.ThetaX = kinova_coordinates_.ThetaX;
+    target_pos.ThetaY = kinova_coordinates_.ThetaY;
+    target_pos.ThetaZ = kinova_coordinates_.ThetaZ;
 
     geometry_msgs::PoseStamped command_pos = EulerXYZ2Quaternions(target_pos);
 
@@ -292,12 +281,12 @@ void KinovaRosController::openTrashcanDemo(){
 
     convertReferenceFrame(target_pos);
 
-    target_pos.X += kinova_coordinates.X;
-    target_pos.Y += kinova_coordinates.Y;
-    target_pos.Z += kinova_coordinates.Z;
-    target_pos.ThetaX = kinova_coordinates.ThetaX;
-    target_pos.ThetaY = kinova_coordinates.ThetaY;
-    target_pos.ThetaZ = kinova_coordinates.ThetaZ;
+    target_pos.X += kinova_coordinates_.X;
+    target_pos.Y += kinova_coordinates_.Y;
+    target_pos.Z += kinova_coordinates_.Z;
+    target_pos.ThetaX = kinova_coordinates_.ThetaX;
+    target_pos.ThetaY = kinova_coordinates_.ThetaY;
+    target_pos.ThetaZ = kinova_coordinates_.ThetaZ;
 
     command_pos = EulerXYZ2Quaternions(target_pos);
 
@@ -326,15 +315,54 @@ void KinovaRosController::openTrashcanDemo(){
     else
         ROS_INFO("Insertion of tool did not finish before timeout.");
 
+
     //----------------------------------------------
     // O P E N
     //----------------------------------------------
 
     ROS_INFO("Starting opening phase.");
 
+    ros::spinOnce();
+
+    JointAngles target_angles;
+    target_angles.joint1 = kinova_angles_.joint1;
+    target_angles.joint2 = kinova_angles_.joint2;
+    target_angles.joint3 = kinova_angles_.joint3;
+    target_angles.joint4 = kinova_angles_.joint4;
+    target_angles.joint5 = kinova_angles_.joint5;
+    target_angles.joint6 = kinova_angles_.joint6 + 90;
+    target_angles.joint7 = kinova_angles_.joint7;
+
+    ROS_INFO("Waiting for joint_angles_action server to start.");
+    joint_angles_client_.waitForServer();
+    ROS_INFO("joint_angles_action server reached.");
+
+    kinova_ros_murmel::ArmJointAnglesGoal open_keyhole_goal;
+    open_keyhole_goal.angles.joint1 = target_angles.joint1;
+    open_keyhole_goal.angles.joint2 = target_angles.joint2;
+    open_keyhole_goal.angles.joint3 = target_angles.joint3;
+    open_keyhole_goal.angles.joint4 = target_angles.joint4;
+    open_keyhole_goal.angles.joint5 = target_angles.joint5;
+    open_keyhole_goal.angles.joint6 = target_angles.joint6;
+    open_keyhole_goal.angles.joint7 = target_angles.joint7;     // might cause error, alternatively set to 0
+
+    joint_angles_client_.sendGoal(open_keyhole_goal);
+
+    finished_before_timeout = joint_angles_client_.waitForResult(ros::Duration(10));
+
+    if(finished_before_timeout){
+        actionlib::SimpleClientGoalState state = joint_angles_client_.getState();
+        ROS_INFO("Opening of keyhole: %s", state.toString().c_str());
+    }
+    else
+        ROS_INFO("Opening of keyhole did not finish before timeout");
 
 
+    //----------------------------------------------
+    // E X T R A C T
+    //----------------------------------------------
 
+    
 }
 
 geometry_msgs::PoseStamped KinovaRosController::EulerXYZ2Quaternions(const KinovaPose &target_pos) {
@@ -367,9 +395,9 @@ geometry_msgs::PoseStamped KinovaRosController::EulerXYZ2Quaternions(const Kinov
 void KinovaRosController::convertReferenceFrame(PoseVelocity &target_velocity){
     // transformation matrix between end effector and base frame is given by the end effector orientation
     Eigen::Matrix3f orientation_robot;
-    orientation_robot = Eigen::AngleAxisf(kinova_coordinates.ThetaX, Eigen::Vector3f::UnitX())  // Thetas have to be normalized -> implement function similar to kinovas
-                        * Eigen::AngleAxisf(kinova_coordinates.ThetaY, Eigen::Vector3f::UnitY())
-                        * Eigen::AngleAxisf(kinova_coordinates.ThetaZ, Eigen::Vector3f::UnitZ());
+    orientation_robot = Eigen::AngleAxisf(kinova_coordinates_.ThetaX, Eigen::Vector3f::UnitX())  // Thetas have to be normalized -> implement function similar to kinovas
+                        * Eigen::AngleAxisf(kinova_coordinates_.ThetaY, Eigen::Vector3f::UnitY())
+                        * Eigen::AngleAxisf(kinova_coordinates_.ThetaZ, Eigen::Vector3f::UnitZ());
     
     // translation vector in end effector frame
     Eigen::Vector3f translation_vector_ee_frame(target_velocity.twist_linear_x, target_velocity.twist_linear_y, target_velocity.twist_linear_z);
@@ -386,8 +414,8 @@ void KinovaRosController::convertReferenceFrame(PoseVelocity &target_velocity){
 void KinovaRosController::convertReferenceFrame(KinovaPose &target_position){
     // transformation matrix between end effector and base frame is given by the end effector orientation
     Eigen::Matrix3f orientation_robot;
-    orientation_robot = Eigen::AngleAxisf(kinova_coordinates.ThetaX, Eigen::Vector3f::UnitX()) // Thetas have to be normalized -> implement function similar to kinovas
-                        * Eigen::AngleAxisf(kinova_coordinates.ThetaY, Eigen::Vector3f::UnitY()) * Eigen::AngleAxisf(kinova_coordinates.ThetaZ, Eigen::Vector3f::UnitZ());
+    orientation_robot = Eigen::AngleAxisf(kinova_coordinates_.ThetaX, Eigen::Vector3f::UnitX()) // Thetas have to be normalized -> implement function similar to kinovas
+                        * Eigen::AngleAxisf(kinova_coordinates_.ThetaY, Eigen::Vector3f::UnitY()) * Eigen::AngleAxisf(kinova_coordinates_.ThetaZ, Eigen::Vector3f::UnitZ());
 
     // translation vector in end effector frame
     Eigen::Vector3f translation_vector_ee_frame(target_position.X, target_position.Y, target_position.Z);
@@ -399,6 +427,25 @@ void KinovaRosController::convertReferenceFrame(KinovaPose &target_position){
     target_position.X = translation_vector_base_frame(0);
     target_position.Y = translation_vector_base_frame(1);
     target_position.Z = translation_vector_base_frame(2);
+}
+
+void KinovaRosController::kinovaCoordinatesCallback(const KinovaPose &coordinates){
+    kinova_coordinates_.X = coordinates.X;
+    kinova_coordinates_.Y = coordinates.Y;
+    kinova_coordinates_.Z = coordinates.Z;
+    kinova_coordinates_.ThetaX = coordinates.ThetaX;
+    kinova_coordinates_.ThetaY = coordinates.ThetaY;
+    kinova_coordinates_.ThetaZ = coordinates.ThetaZ;
+}
+
+void KinovaRosController::kinovaAnglesCallback(const JointAngles &angles){
+    kinova_angles_.joint1 = angles.joint1;
+    kinova_angles_.joint2 = angles.joint2;
+    kinova_angles_.joint3 = angles.joint3;
+    kinova_angles_.joint4 = angles.joint4;
+    kinova_angles_.joint5 = angles.joint5;
+    kinova_angles_.joint6 = angles.joint6;
+    kinova_angles_.joint7 = angles.joint7;
 }
 
 enum OperationState {
