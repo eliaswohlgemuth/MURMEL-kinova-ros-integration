@@ -246,7 +246,6 @@ void KinovaRosController::openTrashcanDemo(){
 
     ROS_INFO("Waiting for arm_pose_action server to start.");
     tool_pose_client_.waitForServer();
-
     ROS_INFO("tool_pose_action server reached.");
 
     kinova_ros_murmel::ArmPoseGoal xy_offset_goal;
@@ -259,8 +258,8 @@ void KinovaRosController::openTrashcanDemo(){
     xy_offset_goal.pose.pose.orientation.w = command_pos.pose.orientation.w;
 
     tool_pose_client_.sendGoal(xy_offset_goal);
-    bool finished_before_timeout = tool_pose_client_.waitForResult(ros::Duration(10));
 
+    bool finished_before_timeout = tool_pose_client_.waitForResult(ros::Duration(10));
     if(finished_before_timeout){
         actionlib::SimpleClientGoalState state = tool_pose_client_.getState();
         ROS_INFO("Correction of x&y offset: %s", state.toString().c_str());
@@ -292,7 +291,6 @@ void KinovaRosController::openTrashcanDemo(){
 
     ROS_INFO("Waiting for arm_pose_action server to start.");
     tool_pose_client_.waitForServer();
-
     ROS_INFO("tool_pose_action server reached.");
 
     kinova_ros_murmel::ArmPoseGoal insert_goal;
@@ -305,8 +303,8 @@ void KinovaRosController::openTrashcanDemo(){
     insert_goal.pose.pose.orientation.w = command_pos.pose.orientation.w;
 
     tool_pose_client_.sendGoal(insert_goal);
-    bool finished_before_timeout = tool_pose_client_.waitForResult(ros::Duration(10));
 
+    finished_before_timeout = tool_pose_client_.waitForResult(ros::Duration(10));
     if (finished_before_timeout)
     {
         actionlib::SimpleClientGoalState state = tool_pose_client_.getState();
@@ -349,7 +347,6 @@ void KinovaRosController::openTrashcanDemo(){
     joint_angles_client_.sendGoal(open_keyhole_goal);
 
     finished_before_timeout = joint_angles_client_.waitForResult(ros::Duration(10));
-
     if(finished_before_timeout){
         actionlib::SimpleClientGoalState state = joint_angles_client_.getState();
         ROS_INFO("Opening of keyhole: %s", state.toString().c_str());
@@ -362,7 +359,88 @@ void KinovaRosController::openTrashcanDemo(){
     // E X T R A C T
     //----------------------------------------------
 
-    
+    ROS_INFO("Starting extraction phase.");
+
+    ros::spinOnce();
+
+    target_angles.joint1 = kinova_angles_.joint1;
+    target_angles.joint2 = kinova_angles_.joint2;
+    target_angles.joint3 = kinova_angles_.joint3;
+    target_angles.joint4 = kinova_angles_.joint4;
+    target_angles.joint5 = kinova_angles_.joint5;
+    target_angles.joint6 = kinova_angles_.joint6 - 90;
+    target_angles.joint7 = kinova_angles_.joint7;
+
+    ROS_INFO("Waiting for joint_angles_action server to start.");
+    joint_angles_client_.waitForServer();
+    ROS_INFO("joint_angles_action server reached.");
+
+    kinova_ros_murmel::ArmJointAnglesGoal close_keyhole_goal;
+    close_keyhole_goal.angles.joint1 = target_angles.joint1;
+    close_keyhole_goal.angles.joint2 = target_angles.joint2;
+    close_keyhole_goal.angles.joint3 = target_angles.joint3;
+    close_keyhole_goal.angles.joint4 = target_angles.joint4;
+    close_keyhole_goal.angles.joint5 = target_angles.joint5;
+    close_keyhole_goal.angles.joint6 = target_angles.joint6;
+    close_keyhole_goal.angles.joint7 = target_angles.joint7;    // might cause error, alternatively set to 0
+
+    joint_angles_client_.sendGoal(close_keyhole_goal);
+
+    finished_before_timeout = joint_angles_client_.waitForResult(ros::Duration(10));
+    if (finished_before_timeout)
+    {
+        actionlib::SimpleClientGoalState state = joint_angles_client_.getState();
+        ROS_INFO("Closing of keyhole: %s", state.toString().c_str());
+    }
+    else
+        ROS_INFO("Closing of keyhole did not finish before timeout");
+
+    // retracting tool
+    target_pos.X = 0;
+    target_pos.Y = 0;
+    target_pos.Y = -correction_offset_z;
+    target_pos.ThetaX = 0;
+    target_pos.ThetaY = 0;
+    target_pos.ThetaZ = 0;
+
+    ros::spinOnce();
+
+    convertReferenceFrame(target_pos);
+
+    target_pos.X += kinova_coordinates_.X;
+    target_pos.Y += kinova_coordinates_.Y;
+    target_pos.Z += kinova_coordinates_.Z;
+    target_pos.ThetaX = kinova_coordinates_.ThetaX;
+    target_pos.ThetaY = kinova_coordinates_.ThetaY;
+    target_pos.ThetaZ = kinova_coordinates_.ThetaZ;
+
+    command_pos = EulerXYZ2Quaternions(target_pos);
+
+    ROS_INFO("Waiting for arm_pose_action server to start.");
+    tool_pose_client_.waitForServer();
+    ROS_INFO("tool_pose_action server reached.");
+
+    kinova_ros_murmel::ArmPoseGoal retract_goal;
+    retract_goal.pose.pose.position.x = command_pos.pose.position.x;
+    retract_goal.pose.pose.position.y = command_pos.pose.position.y;
+    retract_goal.pose.pose.position.z = command_pos.pose.position.z;
+    retract_goal.pose.pose.orientation.x = command_pos.pose.orientation.x;
+    retract_goal.pose.pose.orientation.y = command_pos.pose.orientation.y;
+    retract_goal.pose.pose.orientation.z = command_pos.pose.orientation.z;
+    retract_goal.pose.pose.orientation.w = command_pos.pose.orientation.w;
+
+    tool_pose_client_.sendGoal(retract_goal);
+
+    finished_before_timeout = tool_pose_client_.waitForResult(ros::Duration(10));
+    if (finished_before_timeout)
+    {
+        actionlib::SimpleClientGoalState state = tool_pose_client_.getState();
+        ROS_INFO("Retraction of tool: %s", state.toString().c_str());
+    }
+    else
+        ROS_INFO("Retraction of tool did not finish before timeout.");
+
+    ROS_INFO("Opening sequence finished completely.");
 }
 
 geometry_msgs::PoseStamped KinovaRosController::EulerXYZ2Quaternions(const KinovaPose &target_pos) {
