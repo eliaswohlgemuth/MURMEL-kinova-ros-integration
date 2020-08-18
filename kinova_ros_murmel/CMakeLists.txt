@@ -57,6 +57,7 @@ find_package(catkin REQUIRED COMPONENTS
    FILES
    JointAngles.msg
 	 PoseVelocity.msg
+	 KinovaPose.msg
  )
 
 # Generate services in the 'srv' folder

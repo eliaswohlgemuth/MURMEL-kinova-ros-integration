@@ -4,8 +4,8 @@ namespace kinova_ros_murmel {
 
 KinovaRosController::KinovaRosController(ros::NodeHandle &nodeHandle)
     : nodeHandle_(nodeHandle), 
-    joint_angles_client("j2n6s300_driver/joints_action/joint_angles", true), 
-    arm_pose_client("tool_pose", true)
+    joint_angles_client_("j2n6s300_driver/joints_action/joint_angles", true), 
+    tool_pose_client_("tool_pose", true) // get correct address from running kinova node
 {
     //wait for launch of jaco to complete, since likely to take longer than current node to start
 
@@ -16,13 +16,12 @@ KinovaRosController::KinovaRosController(ros::NodeHandle &nodeHandle)
         ros::requestShutdown();
     }
 
-
     // ROS communication setup with camera
     camera_mode_client = nodeHandle_.serviceClient<kinova_ros_murmel::CameraMode>("set_camera_mode");
     camera_data_client = nodeHandle_.serviceClient<kinova_ros_murmel::CameraData>("get_corrdinates");
 
     // ROS communication setup with kinova
-    home_arm_client = nodeHandle_.serviceClient<kinova_ros_murmel::HomeArm>("in/home_arm");
+    home_arm_client_ = nodeHandle_.serviceClient<kinova_ros_murmel::HomeArm>("in/home_arm");
     cartesian_velocity_publisher_ = nodeHandle_.advertise<kinova_ros_murmel::PoseVelocity>("in/cartesian_velocity", 2);
     kinova_coordinates_subscriber_ = nodeHandle_.subscribe("out/cartesian_command", 1, &KinovaRosController::kinovaCoordinatesCallback, this);
 
@@ -32,7 +31,6 @@ KinovaRosController::KinovaRosController(ros::NodeHandle &nodeHandle)
     p_theta_x = p_theta_y = PIDController(0.01, pid_i, pid_d);
 
     is_first_init = true;
-    kinova_coordinates.InitStruct();
 }
 
 
@@ -41,13 +39,13 @@ bool KinovaRosController::readParameters(){
     return true;
 }
 
-void KinovaRosController::kinovaCoordinatesCallback(const kinova_msgs::KinovaPose &coordinates) {
+void KinovaRosController::kinovaCoordinatesCallback(const KinovaPose &coordinates) {
     kinova_coordinates.X = coordinates.X;
     kinova_coordinates.Y = coordinates.Y;
     kinova_coordinates.Z = coordinates.Z;
-    kinova_coordinates.X = coordinates.ThetaX;
-    kinova_coordinates.Y = coordinates.ThetaY;
-    kinova_coordinates.Z = coordinates.ThetaZ;
+    kinova_coordinates.ThetaX = coordinates.ThetaX;
+    kinova_coordinates.ThetaY = coordinates.ThetaY;
+    kinova_coordinates.ThetaZ = coordinates.ThetaZ;
 }
 
 
@@ -85,7 +83,7 @@ void KinovaRosController::kinovaMotion(){
 // does not produce same results after using sendRetracted() -> change sendRetraceted() to communicating trough Quaternions or implement own homing function
 void KinovaRosController::initHome() {
     kinova_ros_murmel::HomeArm srv;
-    if (home_arm_client.call(srv))
+    if (home_arm_client_.call(srv))
     {
         ROS_INFO("Arm returned to home position.");
         ros::Duration(5).sleep();
@@ -99,7 +97,7 @@ void KinovaRosController::initHome() {
 void KinovaRosController::sendRetracted() {
     ROS_INFO("Moving arm to retracted position.");
     ROS_INFO("Waiting for joint_angles_action server to start.");
-    joint_angles_client.waitForServer();
+    joint_angles_client_.waitForServer();
 
     ROS_INFO("joint_angles_action server reached.");
 
@@ -111,11 +109,11 @@ void KinovaRosController::sendRetracted() {
     goal.angles.joint5 = actuator5_;
     goal.angles.joint6 = actuator6_;
     goal.angles.joint7 = actuator7_;
-    joint_angles_client.sendGoal(goal);
+    joint_angles_client_.sendGoal(goal);
 
-    bool finished_before_timeout = joint_angles_client.waitForResult(ros::Duration(7));
+    bool finished_before_timeout = joint_angles_client_.waitForResult(ros::Duration(10));
     if(finished_before_timeout){
-        actionlib::SimpleClientGoalState state = joint_angles_client.getState();
+        actionlib::SimpleClientGoalState state = joint_angles_client_.getState();
         ROS_INFO("Action finished: %s", state.toString().c_str());
     }
     else {
@@ -128,6 +126,9 @@ void KinovaRosController::openTrashcanDemo(){
     //----------------------------------------------
     // A P P R O A C H 
     //----------------------------------------------
+
+    ROS_INFO("Starting approaching phase.");
+
     //send tracking command to camera
     kinova_ros_murmel::CameraMode mode_srv;
     mode_srv.request.request = "tracking";
@@ -204,34 +205,34 @@ void KinovaRosController::openTrashcanDemo(){
             }
 
             // create PoseVelocity object containing target velocities
-            CartesianInfo target_velocity;
-            target_velocity.X = dx;
-            target_velocity.Y = dy;
-            target_velocity.Z = dz;
-            target_velocity.ThetaX = theta_x;
-            target_velocity.ThetaY = theta_y;
-            target_velocity.ThetaZ = 0;
+            PoseVelocity target_velocity;
+            target_velocity.twist_linear_x = dx;
+            target_velocity.twist_linear_y = dy;
+            target_velocity.twist_linear_z = dz;
+            target_velocity.twist_angular_x = theta_x;
+            target_velocity.twist_angular_y = theta_y;
+            target_velocity.twist_angular_z = 0;
 
             /** Get current coordinates by calling kinovaCoordinatesCallback(). Since spinOnce() is blocking, coordinates will
              * be updated upon next line
              * If callbackqueue gets to long, seperate callback queue exclusively for kinovaCoordinatesCallback() could be created, 
              * so that this step does not take to much time.
+             * Alternatively use timed callback through timer object
              */
             ros::spinOnce();
 
-            CartesianInfo target_velocity = convertReferenceFrame(target_velocity);
-            PoseVelocity command_pos = convert2PoseVelocity(target_velocity);
+            convertReferenceFrame(target_velocity);
             
-            cartesian_velocity_publisher_.publish(command_pos);
+            cartesian_velocity_publisher_.publish(target_velocity);
         }
     }
 
     //----------------------------------------------
     // I N S E R T
     //----------------------------------------------
-    ROS_INFO("Inserting key.");
+    ROS_INFO("Starting insertino phase.");
 
-    CartesianInfo target_pos;
+    KinovaPose target_pos;
 
     target_pos.X = correction_offset_x;
     target_pos.Y = correction_offset_z;
@@ -243,35 +244,127 @@ void KinovaRosController::openTrashcanDemo(){
     // get current cartesian position
     ros::spinOnce();
 
-    CartesianInfo target_pos = convertReferenceFrame(target_pos);
+    convertReferenceFrame(target_pos);
 
     target_pos.X += kinova_coordinates.X;
     target_pos.Y += kinova_coordinates.Y;
     target_pos.Z += kinova_coordinates.Z;
-    target_pos.ThetaX += kinova_coordinates.ThetaX;
-    target_pos.ThetaY += kinova_coordinates.ThetaY;
-    target_pos.ThetaZ += kinova_coordinates.ThetaZ;
+    target_pos.ThetaX = kinova_coordinates.ThetaX;
+    target_pos.ThetaY = kinova_coordinates.ThetaY;
+    target_pos.ThetaZ = kinova_coordinates.ThetaZ;
 
-    geometry_msgs::PoseStamped command_pos;
+    geometry_msgs::PoseStamped command_pos = EulerXYZ2Quaternions(target_pos);
 
-    // transform orientation into quaternions
+    ROS_INFO("Waiting for arm_pose_action server to start.");
+    tool_pose_client_.waitForServer();
 
-    // while(!isAtTarget()){
-    //     // send command to action server
-    //     // does server need absolute or relative coordinates?
+    ROS_INFO("tool_pose_action server reached.");
 
-    // }
+    kinova_ros_murmel::ArmPoseGoal xy_offset_goal;
+    xy_offset_goal.pose.pose.position.x = command_pos.pose.position.x;
+    xy_offset_goal.pose.pose.position.y = command_pos.pose.position.y;
+    xy_offset_goal.pose.pose.position.z = command_pos.pose.position.z;
+    xy_offset_goal.pose.pose.orientation.x = command_pos.pose.orientation.x;
+    xy_offset_goal.pose.pose.orientation.y = command_pos.pose.orientation.y;
+    xy_offset_goal.pose.pose.orientation.z = command_pos.pose.orientation.z;
+    xy_offset_goal.pose.pose.orientation.w = command_pos.pose.orientation.w;
+
+    tool_pose_client_.sendGoal(xy_offset_goal);
+    bool finished_before_timeout = tool_pose_client_.waitForResult(ros::Duration(10));
+
+    if(finished_before_timeout){
+        actionlib::SimpleClientGoalState state = tool_pose_client_.getState();
+        ROS_INFO("Correction of x&y offset: %s", state.toString().c_str());
+    }
+    else
+        ROS_INFO("Correction of x&y offset did not finish before timeout.");
+
+
+    // inserting tool
+    target_pos.X = 0;
+    target_pos.Y = 0;
+    target_pos.Y = correction_offset_z;
+    target_pos.ThetaX = 0;
+    target_pos.ThetaY = 0;
+    target_pos.ThetaZ = 0;
+
+    ros::spinOnce();
+
+    convertReferenceFrame(target_pos);
+
+    target_pos.X += kinova_coordinates.X;
+    target_pos.Y += kinova_coordinates.Y;
+    target_pos.Z += kinova_coordinates.Z;
+    target_pos.ThetaX = kinova_coordinates.ThetaX;
+    target_pos.ThetaY = kinova_coordinates.ThetaY;
+    target_pos.ThetaZ = kinova_coordinates.ThetaZ;
+
+    command_pos = EulerXYZ2Quaternions(target_pos);
+
+    ROS_INFO("Waiting for arm_pose_action server to start.");
+    tool_pose_client_.waitForServer();
+
+    ROS_INFO("tool_pose_action server reached.");
+
+    kinova_ros_murmel::ArmPoseGoal insert_goal;
+    insert_goal.pose.pose.position.x = command_pos.pose.position.x;
+    insert_goal.pose.pose.position.y = command_pos.pose.position.y;
+    insert_goal.pose.pose.position.z = command_pos.pose.position.z;
+    insert_goal.pose.pose.orientation.x = command_pos.pose.orientation.x;
+    insert_goal.pose.pose.orientation.y = command_pos.pose.orientation.y;
+    insert_goal.pose.pose.orientation.z = command_pos.pose.orientation.z;
+    insert_goal.pose.pose.orientation.w = command_pos.pose.orientation.w;
+
+    tool_pose_client_.sendGoal(insert_goal);
+    bool finished_before_timeout = tool_pose_client_.waitForResult(ros::Duration(10));
+
+    if (finished_before_timeout)
+    {
+        actionlib::SimpleClientGoalState state = tool_pose_client_.getState();
+        ROS_INFO("Insertion of tool: %s", state.toString().c_str());
+    }
+    else
+        ROS_INFO("Insertion of tool did not finish before timeout.");
+
+    //----------------------------------------------
+    // O P E N
+    //----------------------------------------------
+
+    ROS_INFO("Starting opening phase.");
+
+
+
 
 }
 
-geometry_msgs::PoseStamped KinovaRosController::EulerXYZ2Quaternions(const CartesianInfo &target_pos) {
+geometry_msgs::PoseStamped KinovaRosController::EulerXYZ2Quaternions(const KinovaPose &target_pos) {
+
+    float sx = sin(0.5*target_pos.ThetaX);
+    float cx = cos(0.5*target_pos.ThetaX);
+    float sy = sin(0.5*target_pos.ThetaY);
+    float cy = cos(0.5*target_pos.ThetaY);
+    float sz = sin(0.5*target_pos.ThetaZ);
+    float cz = cos(0.5*target_pos.ThetaZ);
+
+    float qx, qy, qz, qw;
+    qx = sx*cy*cz + cx*sy*sz;
+    qy = -sx*cy*sz + cx*sy*cz;
+    qz = sx*sy*cz + cx*cy*sz;
+    qw = -sx*sy*sz + cx*cy*cz;
     
+    geometry_msgs::PoseStamped command_pos;
+    command_pos.pose.position.x = target_pos.X;
+    command_pos.pose.position.y = target_pos.Y;
+    command_pos.pose.position.z = target_pos.Z;
+    command_pos.pose.orientation.x = qx;
+    command_pos.pose.orientation.y = qy;
+    command_pos.pose.orientation.z = qz;
+    command_pos.pose.orientation.w = qw;
+
+    return command_pos;
 }
 
-CartesianInfo KinovaRosController::convertReferenceFrame(const CartesianInfo &target_velocity){
-    CartesianInfo cmd_out;
-    cmd_out = target_velocity;
-
+void KinovaRosController::convertReferenceFrame(PoseVelocity &target_velocity){
     // transformation matrix between end effector and base frame is given by the end effector orientation
     Eigen::Matrix3f orientation_robot;
     orientation_robot = Eigen::AngleAxisf(kinova_coordinates.ThetaX, Eigen::Vector3f::UnitX())  // Thetas have to be normalized -> implement function similar to kinovas
@@ -279,32 +372,34 @@ CartesianInfo KinovaRosController::convertReferenceFrame(const CartesianInfo &ta
                         * Eigen::AngleAxisf(kinova_coordinates.ThetaZ, Eigen::Vector3f::UnitZ());
     
     // translation vector in end effector frame
-    Eigen::Vector3f translation_vector_ee_frame(target_velocity.X, target_velocity.Y, target_velocity.Z);
+    Eigen::Vector3f translation_vector_ee_frame(target_velocity.twist_linear_x, target_velocity.twist_linear_y, target_velocity.twist_linear_z);
 
     // translation vector in base frame
     Eigen::Vector3f translation_vector_base_frame(orientation_robot * translation_vector_ee_frame);
 
     // update the x-y-z- part of the command
-    cmd_out.X = translation_vector_base_frame(0);
-    cmd_out.Y = translation_vector_base_frame(1);
-    cmd_out.Z = translation_vector_base_frame(2);
-
-    return cmd_out;
+    target_velocity.twist_linear_x = translation_vector_base_frame(0);
+    target_velocity.twist_linear_y = translation_vector_base_frame(1);
+    target_velocity.twist_linear_z = translation_vector_base_frame(2);
 }
 
-PoseVelocity KinovaRosController::convert2PoseVelocity(const CartesianInfo &target){
-    PoseVelocity command_pos;
+void KinovaRosController::convertReferenceFrame(KinovaPose &target_position){
+    // transformation matrix between end effector and base frame is given by the end effector orientation
+    Eigen::Matrix3f orientation_robot;
+    orientation_robot = Eigen::AngleAxisf(kinova_coordinates.ThetaX, Eigen::Vector3f::UnitX()) // Thetas have to be normalized -> implement function similar to kinovas
+                        * Eigen::AngleAxisf(kinova_coordinates.ThetaY, Eigen::Vector3f::UnitY()) * Eigen::AngleAxisf(kinova_coordinates.ThetaZ, Eigen::Vector3f::UnitZ());
 
-    command_pos.twist_linear_x = target.X;
-    command_pos.twist_linear_y = target.Y;
-    command_pos.twist_linear_z = target.Z;
-    command_pos.twist_angular_x = target.ThetaX;
-    command_pos.twist_angular_y = target.ThetaY;
-    command_pos.twist_angular_z = target.ThetaZ;
+    // translation vector in end effector frame
+    Eigen::Vector3f translation_vector_ee_frame(target_position.X, target_position.Y, target_position.Z);
 
-    return command_pos;
+    // translation vector in base frame
+    Eigen::Vector3f translation_vector_base_frame(orientation_robot * translation_vector_ee_frame);
+
+    // update the x-y-z- part of the command
+    target_position.X = translation_vector_base_frame(0);
+    target_position.Y = translation_vector_base_frame(1);
+    target_position.Z = translation_vector_base_frame(2);
 }
-
 
 enum OperationState {
     ready,

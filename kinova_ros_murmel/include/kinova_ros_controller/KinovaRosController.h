@@ -3,15 +3,19 @@
 #include <ros/ros.h>
 #include <eigen3/Eigen/Dense>
 
+// msgs
 #include <geometry_msgs/PoseStamped.h>
 #include <kinova_ros_murmel/PoseVelocity.h>
-#include <kinova_msgs/KinovaPose.h>
+#include <kinova_ros_murmel/KinovaPose.h>
+#include <kinova_ros_murmel/JointAngles.h>
 
+// srv
 #include <kinova_ros_murmel/HomeArm.h>
 #include <kinova_ros_murmel/CameraData.h>
 #include <kinova_ros_murmel/ConnectionCheck.h>
 #include <kinova_ros_murmel/CameraMode.h>
 
+// action
 #include <actionlib/client/simple_action_client.h>
 #include <actionlib/client/terminal_state.h>
 #include <kinova_ros_murmel/ArmPoseAction.h>
@@ -19,7 +23,6 @@
 
 #include <ExponentialFilter.hpp>
 #include <PIDController.hpp>
-#include <KinovaTypes.h>
 
 
 namespace kinova_ros_murmel {
@@ -33,12 +36,15 @@ class KinovaRosController {
         void initHome();
         void sendRetracted();
 
-        void kinovaCoordinatesCallback(const kinova_msgs::KinovaPose &pose);
+        void kinovaCoordinatesCallback(const KinovaPose &pose);
 
-        CartesianInfo convertReferenceFrame(const CartesianInfo &target_velocity);
-        PoseVelocity convert2PoseVelocity(const CartesianInfo &target);
+        void convertReferenceFrame(PoseVelocity &target_velocity);
+        void convertReferenceFrame(KinovaPose &target_position);
 
-        geometry_msgs::PoseStamped EulerXYZ2Quaternions(const CartesianInfo &target_pos); // point as type fits for describing 
+        bool isAtTarget(const JointAngles &target_angles);
+        bool isAtTarget(const KinovaPose &target_position);
+
+        geometry_msgs::PoseStamped EulerXYZ2Quaternions(const KinovaPose &target_pos);
 
         bool readParameters();
         bool isHomed();
@@ -56,12 +62,13 @@ class KinovaRosController {
         ros::ServiceClient camera_mode_client;              // send cameras operating mode 
 
         // kinova communication
-        actionlib::SimpleActionClient<kinova_ros_murmel::ArmJointAnglesAction> joint_angles_client;
-        actionlib::SimpleActionClient<kinova_ros_murmel::ArmPoseAction> arm_pose_client;
+        actionlib::SimpleActionClient<kinova_ros_murmel::ArmJointAnglesAction> joint_angles_client_;
+        actionlib::SimpleActionClient<kinova_ros_murmel::ArmPoseAction> tool_pose_client_;
 
-        ros::ServiceClient home_arm_client;
+        ros::ServiceClient home_arm_client_;
 
         ros::Subscriber kinova_coordinates_subscriber_;
+        ros::Subscriber kinova_angles_subscriber_;
 
         ros::Publisher cartesian_velocity_publisher_;
     
@@ -69,8 +76,9 @@ class KinovaRosController {
         bool is_first_init;
         const int queue_size_ = 10;
 
-        // current kinova coordinates
-        CartesianInfo kinova_coordinates;
+        // kinova coordinates/angles, current after calling ros::spinOnce()
+        KinovaPose kinova_coordinates;      
+        JointAngles kinova_angles;
 
         //custom home postition coordinates
         const float actuator1_ = 275;
@@ -91,12 +99,12 @@ class KinovaRosController {
         const int controller_offset_x = 0;
         const int controller_offset_y = 0;
         const int controller_offset_z = -0.08 - dz_min;
-        const double controller_offset_theta_x = 0;
-        const double controller_offset_theta_y = 0;
+        const float controller_offset_theta_x = 0;
+        const float controller_offset_theta_y = 0;
 
-        const double correction_offset_x = -0.013;
-        const double correction_offset_y = -0.09;
-        const double correction_offset_z = dz_min;
+        const float correction_offset_x = -0.013;
+        const float correction_offset_y = -0.09;
+        const float correction_offset_z = dz_min;
 
         ExponentialFilter f_prob, f_x, f_y, f_z, f_theta_x, f_theta_y;
         PIDController p_x, p_y, p_z, p_theta_x, p_theta_y;
