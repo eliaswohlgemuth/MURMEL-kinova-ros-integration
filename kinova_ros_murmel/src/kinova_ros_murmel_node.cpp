@@ -11,9 +11,12 @@ int main(int argc, char** argv)
     while(ros::ok()){
         kinovaRosController.readParameters();
         ROS_INFO_STREAM("Node running. Op_state: " << kinovaRosController.getOpstate());
-        ros::spinOnce();
         kinovaRosController.kinovaMotion();
-        ros::Duration(2).sleep();
+        /** standard combination of ros::spinOnce() and rate.sleep() does not apply here
+         * spinOnce() gets called on demand and a constant rate is not sensible since op_states like "ready" and "open"
+         * are so different in time consumption
+         * rate.sleep() is implemented only for "ready" */
+
     }
     
     return 0;
