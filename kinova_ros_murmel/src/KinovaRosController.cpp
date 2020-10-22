@@ -22,7 +22,7 @@ KinovaRosController::KinovaRosController(ros::NodeHandle &nodeHandle)
 
     // ROS communication setup with kinova
     home_arm_client_ = nodeHandle_.serviceClient<kinova_ros_murmel::HomeArm>("in/home_arm");
-    cartesian_velocity_publisher_ = nodeHandle_.advertise<kinova_ros_murmel::PoseVelocity>("in/cartesian_velocity", 2);
+    cartesian_velocity_publisher_ = nodeHandle_.advertise<kinova_ros_murmel::PoseVelocity>("in/cartesian_velocity", 1);
     kinova_coordinates_subscriber_ = nodeHandle_.subscribe("out/cartesian_command", 1, &KinovaRosController::kinovaCoordinatesCallback, this);
     kinova_angles_subscriber_ = nodeHandle_.subscribe("out/joint_angles", 1, &KinovaRosController::kinovaAnglesCallback, this);
 
@@ -42,9 +42,8 @@ bool KinovaRosController::readParameters(){
 void KinovaRosController::kinovaMotion(){
     if (op_state_ == "ready"){
         ros::Duration(2).sleep();
-        return;
     }
-    if (op_state_ == "calibrate"){
+    else if (op_state_ == "calibrate"){
         initHome();
         is_first_init = false;
     }
@@ -55,7 +54,6 @@ void KinovaRosController::kinovaMotion(){
             is_first_init = false;
         }
         sendRetracted();
-        return;
     }
     else if (op_state_ == "open"){
         // start from homeposition to make sure arm does not self-collide on moving to retracted position
@@ -64,10 +62,9 @@ void KinovaRosController::kinovaMotion(){
         sendRetracted();
         openTrashcanDemo();
         sendRetracted();
-        return;
     }
 
-        
+    return;        
 }
 
 // does not produce same results after using sendRetracted() -> change sendRetraceted() to communicating trough Quaternions or implement own homing function
@@ -82,6 +79,8 @@ void KinovaRosController::initHome() {
     {
         ROS_ERROR("Failed to return arm to home position.");
     }
+
+    op_state_ = "ready";
 }
 
 void KinovaRosController::sendRetracted() {
@@ -109,6 +108,8 @@ void KinovaRosController::sendRetracted() {
     else {
         ROS_INFO("Action did not finish before timeout.");
     }
+
+    op_state_ = "ready";
 }
 
 void KinovaRosController::openTrashcanDemo(){
@@ -121,9 +122,13 @@ void KinovaRosController::openTrashcanDemo(){
     //send tracking command to camera
     kinova_ros_murmel::CameraMode mode_srv;
     mode_srv.request.request = "tracking";
-    camera_mode_client.call(mode_srv);
+    if(!camera_mode_client.call(mode_srv)){
+        ROS_INFO("Could not send tracking mode to camera.");
+        return;
+    }
 
-    // counter that is used to disregard first few camera values, since they are bogus
+    // counter is used to disregard first few camera values, since they are bogus
+    // remove with integration of new camera if possible
     int counter = 0;
 
     while(true){
@@ -148,8 +153,6 @@ void KinovaRosController::openTrashcanDemo(){
         else {
             ROS_INFO("Could not receive camera data.");           // !!diverge program flow accordingly!!
         }           
-
-        // SKIPPING OUTPUT OF STRINGSTREAM
         
         if(counter++ > 10 && probability > 0){
             // calculate filtered values, which are distances [m]
