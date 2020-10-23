@@ -28,8 +28,8 @@ class KinovaRosController {
     public:
         KinovaRosController(ros::NodeHandle &nodeHandle);
         ~KinovaRosController(){}
-        void kinovaMotion(); // contains Felix Kueblers logic to perform mulleimer opening sequence
-        void openTrashcanDemo();
+        void kinovaMotion();
+        void openTrashcanDemo();    // contains Felix Kueblers logic to perform mulleimer opening sequence
         void initHome();
         void sendRetracted();
 

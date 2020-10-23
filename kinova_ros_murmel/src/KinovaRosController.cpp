@@ -21,10 +21,10 @@ KinovaRosController::KinovaRosController(ros::NodeHandle &nodeHandle)
     camera_data_client = nodeHandle_.serviceClient<kinova_ros_murmel::CameraData>("get_corrdinates");
 
     // ROS communication setup with kinova
-    home_arm_client_ = nodeHandle_.serviceClient<kinova_ros_murmel::HomeArm>("in/home_arm");
-    cartesian_velocity_publisher_ = nodeHandle_.advertise<kinova_ros_murmel::PoseVelocity>("in/cartesian_velocity", 1);
-    kinova_coordinates_subscriber_ = nodeHandle_.subscribe("out/cartesian_command", 1, &KinovaRosController::kinovaCoordinatesCallback, this);
-    kinova_angles_subscriber_ = nodeHandle_.subscribe("out/joint_angles", 1, &KinovaRosController::kinovaAnglesCallback, this);
+    home_arm_client_ = nodeHandle_.serviceClient<kinova_ros_murmel::HomeArm>("j2n6s300_driver/in/home_arm");
+    cartesian_velocity_publisher_ = nodeHandle_.advertise<kinova_ros_murmel::PoseVelocity>("j2n6s300_driver/in/cartesian_velocity", 1);
+    kinova_coordinates_subscriber_ = nodeHandle_.subscribe("j2n6s300_driver/out/cartesian_command", 1, &KinovaRosController::kinovaCoordinatesCallback, this);
+    kinova_angles_subscriber_ = nodeHandle_.subscribe("j2n6s300_driver/out/joint_angles", 1, &KinovaRosController::kinovaAnglesCallback, this);
 
     // create Exp-filters and PID controllers
     f_prob = f_x = f_y = f_z = f_theta_x = f_theta_y = ExponentialFilter(exp_w);
@@ -73,7 +73,7 @@ void KinovaRosController::initHome() {
     if (home_arm_client_.call(srv))
     {
         ROS_INFO("Arm returned to home position.");
-        ros::Duration(5).sleep();
+        ros::Duration(5).sleep();       // obsolete if returning true to call() means homing arm has completely finished
     }
     else
     {
@@ -151,7 +151,8 @@ void KinovaRosController::openTrashcanDemo(){
             theta_y = data_srv.response.theta_y;
         }
         else {
-            ROS_INFO("Could not receive camera data.");           // !!diverge program flow accordingly!!
+            ROS_INFO("Could not receive camera data.");
+            return;
         }           
         
         if(counter++ > 10 && probability > 0){
