@@ -7,7 +7,7 @@ KinovaRosController::KinovaRosController(ros::NodeHandle &nodeHandle)
     joint_angles_client_("j2n6s300_driver/joints_action/joint_angles", true), 
     tool_pose_client_("tool_pose", true) // get correct address from running kinova node
 {
-    //wait for launch of jaco to complete, since likely to take longer than current node to start
+    //possibly delay startup, since kinova node is likely to take longer than this node to start
 
     //provide option to get parameters from parameter server at the start
     if (!readParameters())
@@ -35,8 +35,7 @@ KinovaRosController::KinovaRosController(ros::NodeHandle &nodeHandle)
 }
 
 bool KinovaRosController::readParameters(){
-    if(!nodeHandle_.getParam("op_state", op_state_)) return false;
-    return true;
+    return nodeHandle_.getParam("op_state", op_state_);
 }
 
 void KinovaRosController::kinovaMotion(){
@@ -86,7 +85,7 @@ void KinovaRosController::initHome() {
 void KinovaRosController::sendRetracted() {
     ROS_INFO("Moving arm to retracted position.");
     ROS_INFO("Waiting for joint_angles_action server to start.");
-    joint_angles_client_.waitForServer();
+    joint_angles_client_.waitForServer(ros::Duration(5));
 
     ROS_INFO("joint_angles_action server reached.");
 
@@ -477,7 +476,7 @@ geometry_msgs::PoseStamped KinovaRosController::EulerXYZ2Quaternions(const Kinov
 void KinovaRosController::convertReferenceFrame(PoseVelocity &target_velocity){
     // transformation matrix between end effector and base frame is given by the end effector orientation
     Eigen::Matrix3f orientation_robot;
-    orientation_robot = Eigen::AngleAxisf(kinova_coordinates_.ThetaX, Eigen::Vector3f::UnitX())  // Thetas have to be normalized -> implement function similar to kinovas
+    orientation_robot = Eigen::AngleAxisf(kinova_coordinates_.ThetaX, Eigen::Vector3f::UnitX())
                         * Eigen::AngleAxisf(kinova_coordinates_.ThetaY, Eigen::Vector3f::UnitY())
                         * Eigen::AngleAxisf(kinova_coordinates_.ThetaZ, Eigen::Vector3f::UnitZ());
     
@@ -529,11 +528,4 @@ void KinovaRosController::kinovaAnglesCallback(const JointAngles &angles){
     kinova_angles_.joint6 = angles.joint6;
     kinova_angles_.joint7 = angles.joint7;
 }
-
-enum OperationState {
-    ready,
-    calibrate,
-    retracted,
-    open,
-};
 }

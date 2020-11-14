@@ -15,8 +15,7 @@ int main(int argc, char** argv)
         /** standard combination of ros::spinOnce() and rate.sleep() does not apply here
          * spinOnce() gets called on demand and a constant rate is not sensible since op_states like "ready" and "open"
          * are so different in time consumption
-         * rate.sleep() is implemented only for "ready" */
-
+         * sleep() is implemented only for "ready" */
     }
     
     return 0;

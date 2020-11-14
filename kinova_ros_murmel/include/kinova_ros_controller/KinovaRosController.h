@@ -70,8 +70,8 @@ class KinovaRosController {
         bool is_first_init;
         const int queue_size_ = 10;
 
-        // kinova coordinates/angles, current after calling ros::spinOnce()
-        KinovaPose kinova_coordinates_;      // in m
+        // kinova coordinates/angles, updated every time when calling ros::spinOnce()
+        KinovaPose kinova_coordinates_;      // Euler-XYZ coordinates in m
         JointAngles kinova_angles_;          // in deg
 
         //custom home postition coordinates
